@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+    <pre id="log"></pre>
+    <script>
+        const DELIVERED_CSV_URL = "https://docs.google.com/spreadsheets/d/1d-IUF5slokrV36jc5oOZcfK0v-lUz0JoC2fjEAm6CLo/export?format=csv";
+        const PENDING_CSV_URL = "https://docs.google.com/spreadsheets/d/1McoRE5bx0IWdnbqv-__gtn3ywY0U13zWnMPaArtuCxQ/export?format=csv";
+
+        function l(msg) {
+            document.getElementById('log').textContent += msg + '\n';
+            console.log(msg);
+        }
+
+        function toLowerTr(str) {
+            if (!str) return "";
+            return str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase();
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim() !== "");
+            l("Total lines: " + lines.length);
+            if (lines.length < 2) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim());
+            l("Headers count: " + headers.length);
+            l("Header at 11: " + headers[11]);
+
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                if (values.length > 5) {
+                    let rowObj = {};
+                    headers.forEach((header, index) => {
+                        rowObj[header] = values[index] ? values[index].trim() : "";
+                    });
+                    data.push(rowObj);
+                }
+            }
+            return data;
+        }
+
+        async function test() {
+            try {
+                l("Fetching...");
+                const [deliveredResponse, pendingResponse] = await Promise.all([
+                    fetch(DELIVERED_CSV_URL),
+                    fetch(PENDING_CSV_URL)
+                ]);
+
+                const deliveredText = await deliveredResponse.text();
+                l("Parsing Delivered...");
+                const deliveredData = parseCSV(deliveredText);
+
+                let allData = [...deliveredData];
+
+                const currentSupplier = "AKTİF FİLO";
+                const supplierLower = toLowerTr(currentSupplier).trim();
+                l("supplierLower to search: '" + supplierLower + "'");
+
+                let matchCount = 0;
+                let sampleRow = null;
+
+                for (let i = 0; i < allData.length; i++) {
+                    const row = allData[i];
+                    if ((row['Tedarikçi'] || "").includes("AKTI") || (row['Tedarikçi'] || "").includes("AKTİ")) {
+                        if (!sampleRow) sampleRow = row;
+                    }
+
+                    const rawSupplier = row['Tedarikçi'] || "UNDEFINED";
+                    const rowSupplier = toLowerTr(row['Tedarikçi']).trim();
+
+                    if (rowSupplier === supplierLower || rowSupplier.includes(supplierLower) || supplierLower.includes(rowSupplier)) {
+                        matchCount++;
+                    }
+                }
+
+                l("Match count: " + matchCount);
+                if (sampleRow) {
+                    l("Sample row keys: " + Object.keys(sampleRow).join(", "));
+                    l("Sample row raw tedarikci: '" + sampleRow['Tedarikçi'] + "'");
+                    l("Sample row toLowerTr: '" + toLowerTr(sampleRow['Tedarikçi']).trim() + "'");
+                } else {
+                    l("No row with AKTİ found!");
+                }
+
+                l("DONE");
+
+            } catch (e) {
+                l("ERROR: " + e.message);
+            }
+        }
+
+        test();
+    </script>
+</body>
+
+</html>

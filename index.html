@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrossLink - Eurocross Turkey</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+    <script defer src="./app.js"></script>
+</head>
+
+<body class="login-body">
+    <!-- Full Screen Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loader-content">
+            <img src="./Car.gif" alt="Araç Yükleniyor" class="car-animation">
+            <h2 class="loading-text" style="color: #F88C42;">Sisteme Giriş Yapılıyor...</h2>
+        </div>
+    </div>
+
+    <!-- Background Decoration -->
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <main class="login-container">
+        <div class="login-card glass-panel">
+            <div class="logo-container">
+                <img src="./Logo.png" alt="Eurocross Turkey Logo" class="company-logo">
+            </div>
+
+            <h1 class="project-title" style="color: #F88C42;">CrossLink</h1>
+
+            <form id="loginForm" class="login-form">
+                <div class="input-group">
+                    <label for="companyName">Firma Adı</label>
+                    <div class="input-wrapper">
+                        <!-- SVG Icon for Company -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="input-icon">
+                            <path d="M3 21h18"></path>
+                            <path d="M9 8h1"></path>
+                            <path d="M9 12h1"></path>
+                            <path d="M9 16h1"></path>
+                            <path d="M14 8h1"></path>
+                            <path d="M14 12h1"></path>
+                            <path d="M14 16h1"></path>
+                            <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
+                        </svg>
+                        <input type="text" id="companyName" placeholder="Firma adını giriniz" required
+                            autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Şifre</label>
+                    <div class="input-wrapper">
+                        <!-- SVG Icon for Lock -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="input-icon">
+                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <input type="password" id="password" placeholder="Şifrenizi giriniz" required
+                            autocomplete="current-password">
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="error-message">Hatalı firma adı veya şifre.</div>
+
+                <button type="submit" class="login-btn">
+                    <span>Giriş Yap</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14"></path>
+                        <path d="m12 5 7 7-7 7"></path>
+                    </svg>
+                </button>
+            </form>
+
+            <div class="support-link">
+                <a href="#">Yardıma mı ihtiyacınız var?</a>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

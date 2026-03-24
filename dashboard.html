@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrossLink Dashboard</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./dashboard.css?v=18">
+    <!-- SheetJS for Excel formatting, required for xlsx export -->
+    <!-- SheetJS for Excel formatting, required for xlsx export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Simple-DataMaps for Turkey Map (if not building from scratch, otherwise we inject SVG) -->
+    <!-- Google Charts for Map and Column/Pie -->
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script defer src="./dashboard.js?v=20"></script>
+    <style>
+        .sortable-th {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .sortable-th:hover {
+            background: #fff8f3;
+        }
+
+        .sort-icon {
+            font-size: 0.7rem;
+            color: #aaa;
+            margin-left: 2px;
+        }
+
+        .sortable-th:hover .sort-icon {
+            color: var(--primary-color, #F88C42);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <!-- Sidebar / Header Area -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <img src="./Logo.png" alt="CrossLink Logo" class="header-logo">
+            </div>
+            <div class="header-center" style="position: absolute; left: 50%; transform: translateX(-50%);">
+                <h1 class="header-title" style="color: var(--primary-color); font-weight: 700; margin: 0;">CrossLink
+                </h1>
+            </div>
+            <div class="header-right" style="display:flex; align-items:center; gap:20px;">
+                <div class="supplier-info">
+                    <span class="supplier-label">TEDARİKÇİ FİRMA:</span>
+                    <span id="supplierNameDisplay" class="supplier-name">Yükleniyor...</span>
+                </div>
+                <!-- Action Buttons Container -->
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button class="btn-pdf" id="btnSavePdf" title="PDF olarak indir"
+                        style="background: var(--primary-color); color: white; border: none; border-radius: 6px; padding: 7px 16px; cursor: pointer; font-size: 0.85rem; font-family: 'Inter', sans-serif; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                        📄 PDF Olarak Kaydet
+                    </button>
+                    <button id="logoutBtn" class="action-btn logout-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Çıkış
+                    </button>
+                </div>
+            </div>
+        </header>
+        <main class="dashboard-main">
+            <!-- Filters Section -->
+            <section class="filters-section">
+                <div class="filters-header">
+                    <h2>Filtreler</h2>
+                    <button id="exportCsvBtn" class="action-btn primary-btn export-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Tablo Olarak Al
+                    </button>
+                </div>
+
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label for="filterHizmetNo">Hizmet No</label>
+                        <input type="text" id="filterHizmetNo" placeholder="Örn: TC260...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterDosyaNo">Dosya No</label>
+                        <input type="text" id="filterDosyaNo" placeholder="Örn: TS260...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterDosyaTarihi">Açılış Tarihi (Ay)</label>
+                        <select id="filterDosyaTarihi">
+                            <option value="">Tüm Aylar</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterYil">Açılış Tarihi (Yıl)</label>
+                        <select id="filterYil">
+                            <option value="">Tüm Yıllar</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterMusteri">Müşteri</label>
+                        <select id="filterMusteri">
+                            <option value="">Tümü</option>
+                            <!-- Dynamically populated -->
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterIsim">İsim</label>
+                        <input type="text" id="filterIsim" placeholder="İsim ile ara...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterSoyisim">Soyisim</label>
+                        <input type="text" id="filterSoyisim" placeholder="Soyisim ile ara...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterIl">İl</label>
+                        <select id="filterIl">
+                            <option value="">Tüm İller</option>
+                            <!-- Dynamically populated -->
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterDurum">Teslimat Durumu</label>
+                        <select id="filterDurum">
+                            <option value="">Tümü</option>
+                            <option value="Teslim Edildi">Teslim Edildi</option>
+                            <option value="Teslim Edilmedi">Teslim Edilmedi</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="display:flex; flex-direction:column; justify-content:flex-end;">
+                        <label style="visibility: hidden; margin-bottom: 5px;">Sıfırla</label>
+                        <button id="btnResetFilters"
+                            style="background: #f1f5f9; color: var(--text-dark); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600; width: 100%; transition: all 0.2s;">
+                            🔄 Filtreleri Sıfırla
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Table & Statistics Wrapper -->
+            <div class="content-wrapper" style="display: flex; gap: 20px; width: 100%; box-sizing: border-box;">
+
+                <!-- Left: Data Table Section -->
+                <section class="table-section" style="flex: 2; min-width: 0;">
+                    <div class="table-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                        <div id="loadingDataIndicator" class="loading-data">
+                            <div class="spinner"></div>
+                            <p>Veriler Yükleniyor...</p>
+                        </div>
+                        <table id="dataTable" class="data-table hidden" style="width: 100%; font-size:0.75rem;">
+                            <thead>
+                                <tr>
+                                    <th data-sort="sla" class="sortable-th">SLA <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="Hizmet No" class="sortable-th">Hizmet No <span
+                                            class="sort-icon">⇅</span>
+                                    </th>
+                                    <th data-sort="Dosya No" class="sortable-th">Dosya No <span
+                                            class="sort-icon">⇅</span>
+                                    </th>
+                                    <th data-sort="Dosya Açılış Tarihi" class="sortable-th">Açılış Tarihi <span
+                                            class="sort-icon">⇅</span></th>
+                                    <th data-sort="Müşteri" class="sortable-th">Müşteri <span class="sort-icon">⇅</span>
+                                    </th>
+                                    <th data-sort="İsim" class="sortable-th">İsim <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="Soyisim" class="sortable-th">Soyisim <span class="sort-icon">⇅</span>
+                                    </th>
+                                    <th>Telefon</th>
+                                    <th data-sort="İl" class="sortable-th">İl <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="Teslimat Durumu" class="sortable-th">Durum <span
+                                            class="sort-icon">⇅</span></th>
+                                    <th class="actions-th">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                <!-- Dynamically populated rows -->
+                            </tbody>
+                        </table>
+                        <div id="noDataMessage" class="no-data hidden">
+                            <p>Arama kriterlerinize uygun dosya bulunamadı.</p>
+                        </div>
+                    </div>
+                    <div class="table-footer"
+                        style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px;">
+                        <span id="recordCount"
+                            style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Toplam: 0
+                            Dosya</span>
+                        <div id="paginationControls" class="pagination-controls" style="display: flex; gap: 5px;"></div>
+                    </div>
+                </section>
+
+                <!-- Right: Statistics Section -->
+                <section class="statistics-section" style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Performance Cards -->
+                    <div class="performance-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">Toplam Dosya</h4>
+                            <div id="statTotal" style="font-size:22px;font-weight:700;color:var(--primary-color);">0
+                            </div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">Ort. Teslimat Süresi</h4>
+                            <div id="statPerformance"
+                                style="font-size:22px;font-weight:700;color:var(--primary-color);">-
+                            </div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">Teslim Edildi</h4>
+                            <div id="statDelivered" style="font-size:22px;font-weight:700;color:var(--primary-color);">0
+                            </div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">Teslim Edilmedi</h4>
+                            <div id="statPending" style="font-size:22px;font-weight:700;color:var(--primary-color);">0
+                            </div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">Toplam İkame Gün</h4>
+                            <div id="statTotalIkameGun"
+                                style="font-size:22px;font-weight:700;color:var(--primary-color);">0
+                            </div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">Dosya Başına İkame</h4>
+                            <div id="statAvgIkameGun"
+                                style="font-size:22px;font-weight:700;color:var(--primary-color);">0
+                                gün</div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">SLA Uyum Oranı</h4>
+                            <div id="statSlaRate" style="font-size:22px;font-weight:700;color:var(--primary-color);">-%
+                            </div>
+                        </div>
+                        <div class="card"
+                            style="background:white;padding:12px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);text-align:center;">
+                            <h4 style="margin:0;font-size:11px;color:#666;">En Fazla Segment</h4>
+                            <div id="statTopSegment" style="font-size:18px;font-weight:700;color:var(--primary-color);">
+                                -</div>
+                            <div id="statTopSegmentSub" style="font-size:11px;color:#888;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Turkey Map & Tables -->
+                    <div class="map-wrapper"
+                        style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 15px;">
+
+                        <!-- Map -->
+                        <div class="map-header">
+                            <h3 style="margin-top:0; font-size: 14px; text-align: center; color: var(--text-dark);">
+                                İllere Göre Dağılım</h3>
+                            <div id="regions_div" style="width: 100%; height: 350px;"></div>
+                        </div>
+
+                        <!-- Tables under map -->
+                        <div class="map-tables" style="display: flex; gap: 15px; max-height: 250px;">
+
+                            <!-- Province Table -->
+                            <div class="province-table-container"
+                                style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                                <table class="stat-table"
+                                    style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                                    <thead style="position: sticky; top: 0; background: #f9fafb;">
+                                        <tr>
+                                            <th
+                                                style="padding: 8px; text-align: left; border-bottom: 1px solid var(--border-color);">
+                                                İl</th>
+                                            <th
+                                                style="padding: 8px; text-align: right; border-bottom: 1px solid var(--border-color);">
+                                                Dosya Sayısı</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="provinceTableBody">
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Region Table -->
+                            <div class="region-table-container"
+                                style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                                <table class="stat-table"
+                                    style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                                    <thead style="position: sticky; top: 0; background: #f9fafb;">
+                                        <tr>
+                                            <th
+                                                style="padding: 8px; text-align: left; border-bottom: 1px solid var(--border-color);">
+                                                Bölge</th>
+                                            <th
+                                                style="padding: 8px; text-align: right; border-bottom: 1px solid var(--border-color);">
+                                                Dosya Sayısı</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="regionTableBody">
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Pie Chart -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+                            <div
+                                style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto; width: 100%;">
+                                <h3 style="margin-top:0; font-size: 14px; text-align: center; color: var(--text-dark);">
+                                    Müşteri Dağılımı (%)</h3>
+                                <div id="customer_pie_div" style="width: 100%; height: 350px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Segment Bazlı Analiz Table -->
+                    <div
+                        style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                        <h3 style="margin-top:0; font-size: 14px; text-align: center; color: var(--text-dark);">Segment
+                            Bazlı Dağılım</h3>
+                        <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                            <thead style="background:#f9fafb;">
+                                <tr>
+                                    <th
+                                        style="padding:8px; text-align:left; border-bottom:1px solid var(--border-color);">
+                                        Segment</th>
+                                    <th
+                                        style="padding:8px; text-align:right; border-bottom:1px solid var(--border-color);">
+                                        Adet</th>
+                                    <th
+                                        style="padding:8px; text-align:right; border-bottom:1px solid var(--border-color);">
+                                        Toplam Gün</th>
+                                    <th
+                                        style="padding:8px; text-align:right; border-bottom:1px solid var(--border-color);">
+                                        Oran</th>
+                                </tr>
+                            </thead>
+                            <tbody id="segmentTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading overlay removed to prevent double loading screen -->
+</body>
+
+</html>

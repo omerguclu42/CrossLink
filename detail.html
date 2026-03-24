@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dosya Detayı - CrossLink</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css?v=3">
+    <link rel="stylesheet" href="./detail.css?v=3">
+    <script defer src="./detail.js?v=3"></script>
+</head>
+
+<body>
+    <!-- Full Screen Loading Overlay to match login exactly -->
+    <div id="loadingOverlay" class="loading-overlay active">
+        <div class="loader-content">
+            <img src="./Car.gif" alt="Araç Yükleniyor" class="car-animation">
+            <h2 class="loading-text" style="color: #F88C42;">Dosyaya Giriliyor...</h2>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header detail-header-centered">
+            <div class="header-left">
+                <div class="logo">
+                    <h1 style="color: var(--primary-color); font-size: 1.5rem;">CrossLink</h1>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <span class="supplier-label">TEDARİKÇİ FİRMA:</span>
+                    <span class="supplier-name" id="supplierNameDisplay">Yükleniyor...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="detail-main">
+            <!-- Loading overlay was here, moved to root -->
+
+            <div id="errorOverlay" class="error-overlay hidden">
+                <p id="errorMessage">Dosya bulunamadı.</p>
+                <a href="dashboard.html" class="btn btn-primary">Ana Sayfa'ya Dön</a>
+            </div>
+
+            <div id="detailContent" class="detail-content hidden">
+                <!-- Page Header with Status -->
+                <div class="detail-page-header">
+                    <div style="display: flex; gap: 15px; align-items: flex-start;">
+                        <a href="dashboard.html" class="back-btn" style="margin-top: 4px;" title="Geri Dön">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="19" y1="12" x2="5" y2="12"></line>
+                                <polyline points="12 19 5 12 12 5"></polyline>
+                            </svg>
+                        </a>
+                        <div>
+                            <h2 id="pageTitleHizmetNo"
+                                style="font-weight: 600; font-size: 1.5rem; color: var(--text-dark);">Hizmet No: </h2>
+                            <h2 id="pageTitleDosyaNo"
+                                style="font-weight: 600; font-size: 1.5rem; color: var(--text-dark);">Dosya No: </h2>
+                        </div>
+                        <div id="detailPerformanceCard"
+                            style="margin-left: 20px; padding: 10px 15px; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: center; background: #fff;">
+                            <span
+                                style="font-size: 0.75rem; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Teslimat
+                                Süresi</span>
+                            <span id="detailPerformanceText"
+                                style="font-size: 1.1rem; font-weight: 700; color: var(--primary-color);">Yükleniyor...</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span id="badgeStatus" class="status-badge"></span>
+                    </div>
+                </div>
+
+                <!-- 1. Müşteri Bilgileri -->
+                <section class="detail-section">
+                    <div class="section-header">
+                        <h3>Müşteri Bilgileri</h3>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-group">
+                            <label>Kullanıcı Adı</label>
+                            <div class="info-value" id="valIsim">-</div>
+                        </div>
+                        <div class="info-group">
+                            <label>Kullanıcı Soyadı</label>
+                            <div class="info-value" id="valSoyisim">-</div>
+                        </div>
+                        <div class="info-group">
+                            <label>Telefon</label>
+                            <div class="info-value" id="valTelefon">-</div>
+                        </div>
+                        <div class="info-group">
+                            <label>Teminat</label>
+                            <div class="info-value" id="valTeminat">-</div>
+                        </div>
+                        <div class="info-group update-btn-group" id="btnUpdateGroup"
+                            style="display: none; margin-top: 10px;">
+                            <button id="btnOpenUpdateModal" class="btn detail-action-btn action-btn"
+                                style="padding: 12px 24px; justify-content: center; width: 100%;">Güncelle</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. İkame Araç Bilgileri -->
+                <section class="detail-section">
+                    <div class="section-header">
+                        <h3>Araç Bilgileri</h3>
+                    </div>
+                    <div class="info-grid form-grid">
+                        <div class="form-group">
+                            <label>Plaka</label>
+                            <input type="text" id="inputPlaka" class="form-control" placeholder="Örn: 34ABC123">
+                        </div>
+                        <div class="form-group">
+                            <label>Marka</label>
+                            <div id="containerMarka">
+                                <!-- Select for editable, span for readonly -->
+                                <select id="inputMarka" class="form-control editable-only">
+                                    <option value="">Seçiniz...</option>
+                                </select>
+                                <div id="displayMarka" class="info-value readonly-only hidden">-</div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Model</label>
+                            <div id="containerModel">
+                                <select id="inputModel" class="form-control editable-only" disabled>
+                                    <option value="">Önce Marka Seçiniz...</option>
+                                </select>
+                                <div id="displayModel" class="info-value readonly-only hidden">-</div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Segment</label>
+                            <!-- Segment is always auto-filled or read from excel -->
+                            <input type="text" id="inputSegment" class="form-control" readonly placeholder="-">
+                        </div>
+                        <div class="form-group">
+                            <label>Kilometre</label>
+                            <!-- Input allowing numbers/formatting -->
+                            <input type="text" id="inputKm" class="form-control" placeholder="10.000">
+                        </div>
+                        <div class="form-group">
+                            <label>Araç Yılı</label>
+                            <div id="containerYil">
+                                <select id="inputYil" class="form-control editable-only">
+                                    <option value="">Seçiniz...</option>
+                                    <!-- Populated by JS (2011-2026) -->
+                                </select>
+                                <div id="displayYil" class="info-value readonly-only hidden">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. Tarihler -->
+                <section class="detail-section">
+                    <div class="section-header">
+                        <h3>Tarihler</h3>
+                    </div>
+                    <div class="info-grid form-grid">
+                        <div class="form-group">
+                            <label>Teslimat Tarihi</label>
+                            <input type="text" id="inputTeslimatTarihi" class="form-control"
+                                placeholder="Örn: 08.03.2026 12:13">
+                        </div>
+                        <div class="form-group">
+                            <label>İade Tarihi</label>
+                            <input type="text" id="inputIadeTarihi" class="form-control"
+                                placeholder="Örn: 08.03.2026 12:13">
+                        </div>
+                        <div class="form-group" id="hakedisGroup">
+                            <label>Hakediş Tarihi</label>
+                            <div class="datetime-group">
+                                <input type="date" id="inputHakedisTarihiGunu" class="form-control" style="flex:2;">
+                                <select id="inputHakedisSaat" class="form-control" style="flex:1;">
+                                    <option value="">Saat</option>
+                                </select>
+                                <span>:</span>
+                                <select id="inputHakedisDakika" class="form-control" style="flex:1;">
+                                    <option value="">Dakika</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. Ekler -->
+                <section class="detail-section" id="eklerSection">
+                    <div class="section-header">
+                        <h3>Ekler</h3>
+                    </div>
+                    <div id="eklerListesi" class="ekler-list">
+                        <p class="text-muted" id="noEklerMessage">Henüz eklenmiş bir evrak bulunmuyor.</p>
+                        <!-- Eklenen evraklar JS ile buraya eklenecek -->
+                    </div>
+                </section>
+
+                <!-- 5. Notlar -->
+                <section class="detail-section">
+                    <div class="section-header">
+                        <h3>Notlar</h3>
+                    </div>
+                    <div id="notlarListesi" style="margin-bottom:10px; max-height:200px; overflow-y:auto;"></div>
+                    <div style="display:flex; gap:8px; align-items:flex-end;">
+                        <textarea id="notInput" class="form-control" rows="3" placeholder="Notunuzu buraya yazınız..."
+                            style="flex:1; resize:vertical;"></textarea>
+                        <button id="btnAddNot" class="btn detail-action-btn action-btn"
+                            style="padding:10px 18px; height:fit-content; white-space:nowrap;">Not Ekle</button>
+                    </div>
+                </section>
+
+                <!-- 6. Aksiyon Butonları -->
+                <section class="action-section">
+                    <input type="file" id="hiddenFileInput" style="display: none;">
+                    <button class="btn detail-action-btn action-btn" id="btnUploadForm"
+                        style="display: flex; align-items: center; gap: 8px; padding: 12px 24px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        İkame Araç Formunu Yükle
+                    </button>
+                    <button class="btn detail-action-btn action-btn" id="btnStartTeslimat" style="padding: 12px 24px;">
+                        Teslimat Sürecini Başlat
+                    </button>
+                    <button class="btn detail-action-btn action-btn" id="btnStartIade" style="padding: 12px 24px;">
+                        İade Sürecini Başlat
+                    </button>
+                    <button class="btn action-btn" id="btnResetDemo"
+                        style="padding: 12px 24px; background-color: #dc2626; color: white;">
+                        Süreci Sıfırla (Demo)
+                    </button>
+                </section>
+
+                <!-- Activity Log Panel (sağ panel) -->
+                <section class="detail-section" style="margin-top:20px;">
+                    <div class="section-header"
+                        style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3>Aktivite Logu</h3>
+                        <span style="font-size:0.75rem;color:#999;">Son aksiyonlar</span>
+                    </div>
+                    <div id="activityLog"
+                        style="max-height:300px; overflow-y:auto; font-size:0.82rem; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:#fafafa;">
+                        <p style="color:#999; text-align:center; margin:0;">Henüz bir aksiyon gerçekleşmedi.</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Update Modal (Pop-up) -->
+    <div id="updateModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Müşteri Bilgilerini Güncelle</h3>
+                <span class="close-modal" id="closeUpdateModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Kullanıcı Adı</label>
+                    <input type="text" id="modalIsim" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Kullanıcı Soyadı</label>
+                    <input type="text" id="modalSoyisim" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Telefon</label>
+                    <input type="text" id="modalTelefon" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Teminat</label>
+                    <input type="text" id="modalTeminat" class="form-control">
+                </div>
+                <div class="form-group"
+                    style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                    <label style="color: #dc2626; font-weight: 600;">İşlem Onayı İçin Şifre</label>
+                    <input type="password" id="modalSifre" class="form-control" placeholder="Şifrenizi giriniz...">
+                    <p id="modalError" class="error-msg hidden">Hatalı şifre girdiniz.</p>
+                </div>
+            </div>
+            <div class="modal-footer"
+                style="display: flex; justify-content: space-between; gap: 10px; margin-top: 20px;">
+                <button class="btn modal-btn-cancel modal-btn-large" id="btnCancelUpdate">İptal</button>
+                <button class="btn modal-btn-confirm modal-btn-large" id="btnSaveUpdate">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Modal (Pop-up) -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Evrak Silme Onayı</h3>
+                <span class="close-modal" id="closeDeleteModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Bu evrağı silmek istediğinize emin misiniz? Silmek için şifrenizi giriniz.</p>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label style="color: #dc2626; font-weight: 600;">İşlem Onayı İçin Şifre</label>
+                    <input type="password" id="modalDeleteSifre" class="form-control"
+                        placeholder="Şifrenizi giriniz...">
+                    <p id="modalDeleteError" class="error-msg hidden">Hatalı şifre girdiniz.</p>
+                </div>
+            </div>
+            <div class="modal-footer"
+                style="display: flex; justify-content: space-between; gap: 10px; margin-top: 20px;">
+                <button class="btn modal-btn-cancel modal-btn-large" id="btnCancelDelete">İptal</button>
+                <button class="btn modal-btn-danger modal-btn-large" id="btnConfirmDelete">Sil</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SMS OTP Modal (Pop-up) -->
+    <div id="smsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Teslimat Onay Kodu</h3>
+                <span class="close-modal" id="closeSmsModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Sigortalıya gönderilen 6 haneli onay kodunu giriniz.</p>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label style="color: var(--primary-color); font-weight: 600;">Onay Kodu</label>
+                    <input type="text" id="modalSmsKod" class="form-control" placeholder="Örn: 123456" maxlength="6"
+                        style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
+                    <p id="modalSmsError" class="error-msg hidden">Hatalı kod girdiniz.</p>
+                </div>
+            </div>
+            <div class="modal-footer"
+                style="display: flex; justify-content: space-between; gap: 10px; margin-top: 20px;">
+                <button class="btn modal-btn-cancel modal-btn-large" id="btnCancelSms">İptal</button>
+                <button class="btn modal-btn-confirm modal-btn-large" id="btnConfirmSms">Onayla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal for İade -->
+    <div id="confirmIadeModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>İade Süreci</h3>
+                <span class="close-modal" id="closeConfirmIadeModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Sigortalıyla araç iade süreci şu anda fiziksel olarak yapılacaksa bu adıma geçilmelidir. Devam etmek
+                    istiyor musunuz?</p>
+            </div>
+            <div class="modal-footer"
+                style="display: flex; justify-content: space-between; gap: 10px; margin-top: 20px;">
+                <button class="btn modal-btn-cancel modal-btn-large" id="btnCancelIade">İptal</button>
+                <button class="btn modal-btn-confirm modal-btn-large" id="btnYesIade">Evet, Başlat</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
