@@ -98,9 +98,30 @@ async function initDashboard() {
         console.log("JSONP Data Fetched successfully.");
 
         // Parse and combine using the Google Viz parser
+        // Parse and combine using the Google Viz parser
         const deliveredRows = parseGvizJSON(deliveredJson, "Teslim Edildi");
-        const pendingRows = parseGvizJSON(pendingJson, "Teslim Edilmedi");
-        console.log("Delivered Rows parsed: " + deliveredRows.length + ", Pending: " + pendingRows.length);
+        let pendingRowsRaw = parseGvizJSON(pendingJson, "Teslim Edilmedi");
+
+        // Cross-Link LocalStorage Injection - Only fetch files Explicitly Assigned to Current Supplier
+        const assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
+        const pendingRows = [];
+
+        pendingRowsRaw.forEach(row => {
+             const dosyaNo = row['Dosya No'];
+             const assignData = assignments[dosyaNo];
+             if (assignData) {
+                 const suppNorm = normalizeForSearch(assignData.supplier);
+                 const currentNorm = normalizeForSearch(currentSupplier);
+                 
+                 if (suppNorm === currentNorm || suppNorm.includes(currentNorm) || currentNorm.includes(suppNorm)) {
+                     // Force explicit 'Tedarikçi' header onto the schema to ensure the downstream generalized filter passes
+                     row['Tedarikçi'] = assignData.supplier;
+                     pendingRows.push(row);
+                 }
+             }
+        });
+
+        console.log("Delivered Rows parsed: " + deliveredRows.length + ", Pending (Assigned): " + pendingRows.length);
 
         // Combine all rows
         let allData = [...deliveredRows, ...pendingRows];

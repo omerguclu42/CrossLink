@@ -1,6 +1,53 @@
 // Authentication Logic & UI Interactions
 
-// Valid Credentials mapping based on Google Sheet Data
+const OPERASYON_URL = 'https://docs.google.com/spreadsheets/d/1BE4vW3NsyqpIUCQtQTnptMdK3xR25Q3rVp0cWAim3ok/gviz/tq?tqx=out:json';
+
+function fetchJSONP(baseUrl) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'loginGviz_' + Math.round(1000000 * Math.random()) + '_' + Date.now();
+        let script;
+        window[callbackName] = function (data) {
+            delete window[callbackName];
+            if (script && script.parentNode) document.head.removeChild(script);
+            resolve(data);
+        };
+        script = document.createElement('script');
+        
+        let finalUrl = baseUrl;
+        if (finalUrl.includes('tqx=out:json')) {
+            finalUrl = finalUrl.replace('tqx=out:json', 'tqx=out:json;responseHandler:' + callbackName);
+        } else {
+            finalUrl += ';responseHandler:' + callbackName;
+        }
+        finalUrl += '&_t=' + Date.now();
+        
+        script.src = finalUrl;
+        script.onerror = function () {
+            delete window[callbackName];
+            if (script && script.parentNode) document.head.removeChild(script);
+            reject(new Error('Kullanıcı verisi yüklenemedi.'));
+        };
+        document.head.appendChild(script);
+    });
+}
+
+function parseLoginJSON(data) {
+    const rows = [];
+    if (!data || !data.table || !data.table.cols) return rows;
+    const cols = data.table.cols;
+    const headers = cols.map(c => (c.label || c.id || '').trim());
+    (data.table.rows || []).forEach(row => {
+        const obj = {};
+        headers.forEach((h, i) => {
+            const cell = row.c ? row.c[i] : null;
+            const val = cell ? (cell.f != null ? cell.f : (cell.v != null ? String(cell.v) : '')) : '';
+            obj[h] = String(val).trim();
+        });
+        rows.push(obj);
+    });
+    return rows;
+}
+
 // Firma Adı , Sifre
 const validCredentials = [
     { company: "AKTİF FİLO", password: "aktif123" },
@@ -23,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Dynamic icon color adjustment on input focus/blur (handled mostly in CSS, but js adds robust class tracking if needed)
 
-    loginForm.addEventListener("submit", (e) => {
+    loginForm.addEventListener("submit", async (e) => {
         e.preventDefault(); // Prevent classic form submission
 
         // Reset error state
@@ -51,14 +98,50 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (userFound) {
             handleSuccessfulLogin(userFound);
-        } else if (enteredCompany.trim().toLowerCase() === 'admin' && enteredPassword === 'admin123') {
+            return;
+        } 
+        
+        if (enteredCompany.trim().toLowerCase() === 'admin' && enteredPassword === 'admin123') {
             // Admin Login
             loadingOverlay.classList.remove("hidden");
             loadingOverlay.classList.add("active");
             sessionStorage.setItem("crosslink_admin", "true");
             setTimeout(() => { window.location.href = "admin.html"; }, 2000);
-        } else {
-            showError("Hatalı firma adı veya şifre kayıtlı değil.");
+            return;
+        }
+
+        // Check Remote Operasyon Credentials
+        loadingOverlay.classList.remove("hidden");
+        loadingOverlay.classList.add("active");
+        try {
+            const rawData = await fetchJSONP(OPERASYON_URL);
+            const opUsers = parseLoginJSON(rawData);
+            
+            const opUser = opUsers.find(u => 
+                u['Kullanici Adi'] && u['Kullanici Adi'].toLowerCase() === enteredCompany.toLowerCase() &&
+                u['Şifre'] === enteredPassword
+            );
+
+            if (opUser) {
+                // Login Operasyon
+                sessionStorage.setItem("crosslink_operasyon", JSON.stringify({
+                    adSoyad: opUser['AD SOYAD'],
+                    departman: opUser['DEPARTMAN'],
+                    pozisyon: opUser['POZİSYON'],
+                    admin: opUser['Admin'],
+                    atamaYetkisi: opUser['Atama']
+                }));
+                // Wait briefly for UX
+                setTimeout(() => { window.location.href = "operasyon.html"; }, 1500);
+            } else {
+                loadingOverlay.classList.add("hidden");
+                loadingOverlay.classList.remove("active");
+                showError("Hatalı kullanıcı adı veya şifre.");
+            }
+        } catch (error) {
+            loadingOverlay.classList.add("hidden");
+            loadingOverlay.classList.remove("active");
+            showError("Bağlantı hatası: " + error.message);
         }
     });
 

@@ -90,10 +90,35 @@ async function initDetail() {
             return;
         }
 
-        // Apply visual supplier check
-        if (supplier && currentFile['Tedarikçi'] && currentFile['Tedarikçi'].trim().toUpperCase() !== supplier.trim().toUpperCase()) {
-            showError("Bu dosya sizin erişim yetkiniz dahilinde değil.");
-            return;
+        // Cross-Link LocalStorage Injection - Inherit Assignments globally mirroring dashboard logic
+        const assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
+        if (assignments[dosyaNo] && assignments[dosyaNo].supplier) {
+            currentFile['Tedarikçi'] = assignments[dosyaNo].supplier;
+            currentFile['Teslimat Durumu'] = 'Teslim Edilmedi'; // Force explicit active state for locally assigned payloads
+        }
+
+        // Extremely robust character normalization identically paired natively with dashboard search protocols
+        function normalizeText(str) {
+            if (!str) return "";
+            let s = String(str).replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i').replace(/i̇/g, 'i');
+            s = s.replace(/Ş/g, 's').replace(/ş/g, 's').replace(/Ğ/g, 'g').replace(/ğ/g, 'g');
+            s = s.replace(/Ü/g, 'u').replace(/ü/g, 'u').replace(/Ö/g, 'o').replace(/ö/g, 'o');
+            s = s.replace(/Ç/g, 'c').replace(/ç/g, 'c').toLowerCase();
+            return s.replace(/[^a-z0-9]/g, ""); 
+        }
+
+        // Apply visual supplier check mapped thoroughly bypassing uppercase/lowercase mismatch failures
+        if (supplier && currentFile['Tedarikçi']) {
+            const rowSupplierNorm = normalizeText(currentFile['Tedarikçi']);
+            const currentSupplierNorm = normalizeText(supplier);
+            
+            if (rowSupplierNorm !== currentSupplierNorm && 
+                !rowSupplierNorm.includes(currentSupplierNorm) && 
+                !currentSupplierNorm.includes(rowSupplierNorm)) {
+                
+                showError("Bu dosya sizin erişim yetkiniz dahilinde değil.");
+                return;
+            }
         }
 
         await renderDetail(currentFile);
@@ -340,6 +365,11 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         // Disable Iade Button by default until Teslimat is marked
         document.getElementById("btnStartIade").disabled = true;
 
+        // Disable Hakediş Button by default until Teslimat is marked
+        document.getElementById("inputHakedisTarihiGunu").disabled = true;
+        document.getElementById("inputHakedisSaat").disabled = true;
+        document.getElementById("inputHakedisDakika").disabled = true;
+
         // PRE-FILL FROM EXCEL
         inpPlaka.value = localStorage.getItem("crosslink_plaka_" + file['Dosya No']) || file['Plaka'] || "";
         inpSegment.value = localStorage.getItem("crosslink_segment_" + file['Dosya No']) || file['İkame Araç Segmenti'] || file['Segment'] || "";
@@ -373,6 +403,11 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
 
             // Enable Iade Button because Teslimat is marked
             document.getElementById("btnStartIade").disabled = false;
+            
+            // Enable Hakediş Fields because Teslimat is marked
+            document.getElementById("inputHakedisTarihiGunu").disabled = false;
+            document.getElementById("inputHakedisSaat").disabled = false;
+            document.getElementById("inputHakedisDakika").disabled = false;
         }
 
         // Fetch Car Models
@@ -700,6 +735,14 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
 
     if (btnStartIade) {
         btnStartIade.addEventListener("click", () => {
+            const hG = document.getElementById("inputHakedisTarihiGunu").value;
+            const hS = document.getElementById("inputHakedisSaat").value;
+            const hD = document.getElementById("inputHakedisDakika").value;
+            
+            if (!hG || !hS || !hD) {
+                alert("Lütfen araç iade sürecini başlatmadan önce 'Hakediş Tarihi' (Gün, Saat ve Dakika) bilgisini eksiksiz doldurunuz.");
+                return;
+            }
             confirmIadeModal.classList.remove("hidden");
         });
     }
@@ -778,12 +821,14 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
                 localStorage.setItem("crosslink_teslimat_date_" + dosyaNo, currentOtpDate);
                 localStorage.setItem("crosslink_teslimat_" + dosyaNo, "true");
 
-                const hGunu = document.getElementById("inputHakedisTarihiGunu").value;
-                if (hGunu) {
-                    const hSaat = document.getElementById("inputHakedisSaat").value || "00";
-                    const hDak = document.getElementById("inputHakedisDakika").value || "00";
-                    localStorage.setItem("crosslink_hakedis_" + dosyaNo, `${hGunu} ${hSaat}:${hDak}`);
-                }
+                // Enable Iade process dynamically
+                document.getElementById("btnStartIade").disabled = false;
+                document.getElementById("btnStartTeslimat").disabled = true;
+
+                // Unlock Hakediş Fields instantly in DOM since Teslimat is now confirmed
+                document.getElementById("inputHakedisTarihiGunu").disabled = false;
+                document.getElementById("inputHakedisSaat").disabled = false;
+                document.getElementById("inputHakedisDakika").disabled = false;
 
                 // Get the saved values from select boxes. Since the `value` attributes hold the exact strings, we can use `.value`
                 const mMarka = document.getElementById("inputMarka").value || "";
