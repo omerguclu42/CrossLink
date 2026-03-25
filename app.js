@@ -131,7 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Define keys dynamically via ASCII substrings
                 const nameKey = Object.keys(opUser).find(k => k.toLowerCase().includes("ad soyad")) || Object.keys(opUser)[2] || "";
                 const depKey = Object.keys(opUser).find(k => k.toLowerCase().includes("departman")) || "";
-                const pozKey = Object.keys(opUser).find(k => k.toLowerCase().includes("pozisyon")) || "";
+                const pozKey = Object.keys(opUser).find(k => k.toLowerCase().includes("poz") && k.toLowerCase().includes("syon")) || "";
                 const roleKey = Object.keys(opUser).find(k => k.toLowerCase().includes("admin")) || "";
                 const atamaKey = Object.keys(opUser).find(k => k.toLowerCase().includes("atama")) || "";
 
