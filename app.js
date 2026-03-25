@@ -118,9 +118,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const opUsers = parseLoginJSON(rawData);
             
             const opUser = opUsers.find(u => {
-                // Find keys dynamically to prevent Encoding / UTF-8 corruption on GitHub Pages
-                const kKey = Object.keys(u).find(k => k.replace(/ı/g,'i').replace(/I/g,'i').toLowerCase().includes("kullanici"));
-                const sKey = Object.keys(u).find(k => k.replace(/ş/g,'s').replace(/Ş/g,'s').toLowerCase().includes("sifre"));
+                // Find keys relying EXCLUSIVELY on ASCII strings immune to GitHub Pages Encoding Corruptions
+                const kKey = Object.keys(u).find(k => k.toLowerCase().includes("kullanici") || k.toLowerCase().includes("ullanici"));
+                const sKey = Object.keys(u).find(k => k.toLowerCase().includes("ifre"));
                 
                 if(!kKey || !sKey) return false;
                 
@@ -128,18 +128,18 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             if (opUser) {
-                // Define keys dynamically for session storage caching
-                const nameKey = Object.keys(opUser).find(k => k.replace(/ı/g,'i').toLowerCase().includes("ad soyad")) || Object.keys(opUser)[2] || "";
+                // Define keys dynamically via ASCII substrings
+                const nameKey = Object.keys(opUser).find(k => k.toLowerCase().includes("ad soyad")) || Object.keys(opUser)[2] || "";
                 const depKey = Object.keys(opUser).find(k => k.toLowerCase().includes("departman")) || "";
-                const pozKey = Object.keys(opUser).find(k => k.replace(/i̇/g,'i').toLowerCase().includes("pozisyon")) || "";
+                const pozKey = Object.keys(opUser).find(k => k.toLowerCase().includes("pozisyon")) || "";
                 const roleKey = Object.keys(opUser).find(k => k.toLowerCase().includes("admin")) || "";
                 const atamaKey = Object.keys(opUser).find(k => k.toLowerCase().includes("atama")) || "";
 
                 // Login Operasyon
                 sessionStorage.setItem("crosslink_operasyon", JSON.stringify({
                     adSoyad: opUser[nameKey] || enteredCompany,
-                    departman: opUser[depKey] || "",
-                    pozisyon: opUser[pozKey] || "",
+                    departman: opUser[depKey] || "-",
+                    pozisyon: opUser[pozKey] || "-",
                     admin: opUser[roleKey] || "Hayır",
                     atamaYetkisi: opUser[atamaKey] || "Hayır"
                 }));
