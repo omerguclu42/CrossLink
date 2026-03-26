@@ -139,9 +139,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const COMPLETED_URL = 'https://docs.google.com/spreadsheets/d/1d-IUF5slokrV36jc5oOZcfK0v-lUz0JoC2fjEAm6CLo/gviz/tq?tqx=out:json';
     const SUPPLIER_MATRIX_URL = 'https://docs.google.com/spreadsheets/d/1BPCQjEIoRmG73RLwNXquB7fc6XmoyaK_De_yc5c2JFY/gviz/tq?tqx=out:json';
     const SUPPLIER_TARGETS_URL = 'https://docs.google.com/spreadsheets/d/1I5Ybk-cgTFv6jVgqoMQw5Hz-ykF0_Lnk9rb9PzZEvjo/gviz/tq?tqx=out:json';
+    const PRICING_URL = 'https://docs.google.com/spreadsheets/d/1MIIKEV-w0Nyh2CbIUY_uxRpMwB1Y5ySgl3x0ICEVpVM/gviz/tq?tqx=out:json';
+    
     let completedData = [];
     let supplierPriorityData = {};
     let supplierTargetsData = {};
+    let supplierPricingData = [];
 
     function toLowerTr(str) {
         if (!str) return "";
@@ -220,10 +223,81 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    async function loadPricingData() {
+        try {
+            const raw = await fetchJSONP(PRICING_URL);
+            supplierPricingData = parseGvizJSON(raw);
+            console.log("Supplier Pricing Map loaded:", supplierPricingData.length, "rows");
+        } catch(err) {
+            console.error("Supplier pricing load error:", err);
+        }
+    }
+
     // Auto-load on initialization
     loadSupplierData();
     loadTargetsData();
+    loadPricingData();
     loadCompletedData();
+
+    // Badge'leri sayfa yüklenince hemen hesapla (sekmeye tıklanmadan)
+    function updateAllBadgesFromLocalStorage() {
+        const assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
+        const allAssigned = Object.values(assignments);
+
+        let teslimatiBeklenenCount = 0;
+        let kullanimiDevamCount = 0;
+
+        allAssigned.forEach(a => {
+            const dn = a.fullData ? a.fullData['Dosya No'] : null;
+            if (!dn) return;
+            const isTeslimat = localStorage.getItem("crosslink_teslimat_" + dn) === "true";
+            const teslimatDate = localStorage.getItem("crosslink_teslimat_date_" + dn);
+            const iadeDate = localStorage.getItem("crosslink_iade_date_" + dn);
+            const isIade = iadeDate ? true : false;
+            const isTeslimatMaked = (teslimatDate && teslimatDate !== "-") || isTeslimat;
+
+            if (!isIade && !isTeslimatMaked) {
+                teslimatiBeklenenCount++;
+            } else if (isTeslimatMaked && !isIade) {
+                kullanimiDevamCount++;
+            }
+        });
+
+        const badgeTeslimati = document.getElementById("badge-teslimati");
+        if (badgeTeslimati) {
+            badgeTeslimati.textContent = teslimatiBeklenenCount;
+            badgeTeslimati.classList.remove("hidden");
+            badgeTeslimati.style.background = teslimatiBeklenenCount > 0 ? '#F59E0B' : '#9CA3AF';
+        }
+        const badgeDevam = document.getElementById("badge-devam");
+        if (badgeDevam) {
+            badgeDevam.textContent = kullanimiDevamCount;
+            badgeDevam.classList.remove("hidden");
+            badgeDevam.style.background = kullanimiDevamCount > 0 ? '#3B82F6' : '#9CA3AF';
+        }
+    }
+
+    // Ataması Beklenen badge için arka planda sessiz veri çek
+    async function preloadPendingBadge() {
+        try {
+            const json = await fetchJSONP(PENDING_URL);
+            const rawData = parseGvizJSON(json);
+            const badgeAtamasi = document.getElementById("badge-atamasi");
+            if (badgeAtamasi) {
+                badgeAtamasi.textContent = rawData.length;
+                badgeAtamasi.classList.remove("hidden");
+                badgeAtamasi.style.background = rawData.length > 0 ? '#EF4444' : '#9CA3AF';
+            }
+            // Veriyi pendingData'ya da ata ki sekmeye tıklayınca yeniden fetch etmesin
+            pendingData = rawData;
+        } catch(e) {
+            console.warn("Badge preload for pending failed:", e.message);
+        }
+    }
+
+    // Çalıştır
+    updateAllBadgesFromLocalStorage();
+    preloadPendingBadge();
 
     function fetchJSONP(baseUrl) {
         return new Promise((resolve, reject) => {
@@ -389,8 +463,29 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('mPolice').textContent = rowData['Poliçe No'] || '';
         document.getElementById('mTeminat').textContent = rowData['Teminat'] || '';
         document.getElementById('mSegment').textContent = rowData['Talep Edilen Araç Segmenti'] || '';
+        document.getElementById('mPlanTeslimat').textContent = rowData['Planlanmış Teslimat Tarihi'] || '-';
+        document.getElementById('mPlanIade').textContent = rowData['Planlanmış İade Tarihi'] || '-';
         document.getElementById('mTarih').textContent = rowData['Dosya Açılış Tarihi'] || '';
         document.getElementById('mHizmetNo').textContent = rowData['Hizmet No'] || '';
+
+        // İkame Araç Hizmet Bilgileri (SMS ile gelen veya önceden var olan tedarikçi verisi)
+        document.getElementById('mHizmetPlaka').textContent = localStorage.getItem("crosslink_plaka_" + dosyaNo) || rowData['Plaka'] || '-';
+        document.getElementById('mHizmetMarka').textContent = localStorage.getItem("crosslink_marka_" + dosyaNo) || rowData['Marka'] || '-';
+        document.getElementById('mHizmetModel').textContent = localStorage.getItem("crosslink_model_" + dosyaNo) || rowData['Model'] || '-';
+        document.getElementById('mHizmetSegment').textContent = localStorage.getItem("crosslink_segment_" + dosyaNo) || rowData['Araç Segmenti'] || '-';
+        document.getElementById('mHizmetKm').textContent = localStorage.getItem("crosslink_km_" + dosyaNo) || rowData['Kilometre'] || '-';
+        document.getElementById('mHizmetYil').textContent = localStorage.getItem("crosslink_yil_" + dosyaNo) || rowData['Araç Yılı'] || rowData['Model Yılı'] || '-';
+        document.getElementById('mHizmetTeslimat').textContent = localStorage.getItem("crosslink_teslimat_date_" + dosyaNo) || rowData['Teslimat Tarihi'] || '-';
+        document.getElementById('mHizmetIade').textContent = localStorage.getItem("crosslink_iade_date_" + dosyaNo) || rowData['İade Tarihi'] || '-';
+        
+        const dropKmEl = document.getElementById('mHizmetDropKm');
+        if (dropKmEl) dropKmEl.textContent = localStorage.getItem("crosslink_drop_km_" + dosyaNo) || rowData['Drop Kilometre'] || '-';
+        
+        const tutarContainer = document.getElementById('atamaTutarsalContainer');
+        if (tutarContainer) {
+            tutarContainer.innerHTML = "";
+            if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, tutarContainer);
+        }
         
         currentDosyaNo = dosyaNo;
         
@@ -400,12 +495,18 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('btnTedarikciSec').classList.add("hidden");
         document.getElementById('btnAtamaBaslat').classList.add("hidden");
         
+        const noteEl = document.getElementById("operasyonNotInput");
+        if (noteEl) noteEl.value = "";
+        const noteContainer = document.getElementById("operasyonNotContainer");
+        if (noteContainer) noteContainer.classList.add("hidden");
+        
         // Check Local Storage Cache for Assignment
         const cachedYetkili = localStorage.getItem("atama_" + dosyaNo);
         if (cachedYetkili) {
             document.getElementById('mAtamaYetkilisiText').textContent = cachedYetkili;
             if (cachedYetkili === user.adSoyad) {
                 document.getElementById('btnTedarikciSec').classList.remove("hidden");
+                if (noteContainer) noteContainer.classList.remove("hidden");
             } else {
                 document.getElementById('btnTedarikciSec').classList.add("hidden");
             }
@@ -442,11 +543,52 @@ document.addEventListener("DOMContentLoaded", () => {
              `;
              logList.appendChild(li);
         });
+
+        // "Eklenen Notlar" bölümünü doldur
+        renderNotlarBolumu(logsToRender);
         
         document.getElementById('atamaModal').classList.remove("hidden");
     };
 
+    // "Eklenen Notlar" bölümünü render eder (sadece Operasyon Notu: içeren loglar)
+    function renderNotlarBolumu(logs) {
+        const container = document.getElementById("eklenenNotlarContainer");
+        const listesi = document.getElementById("notlarListesi");
+        if (!container || !listesi) return;
+
+        const notLogs = logs.filter(l => l.message && l.message.startsWith("Operasyon Notu:"));
+        listesi.innerHTML = "";
+
+        if (notLogs.length === 0) {
+            container.classList.add("hidden");
+            return;
+        }
+
+        notLogs.forEach(log => {
+            const noteText = log.message.replace("Operasyon Notu:", "").trim();
+            const card = document.createElement("div");
+            card.style.cssText = "background:#F0F0FF; border:1px solid #C7D2FE; border-left:4px solid #4338CA; border-radius:8px; padding:10px 14px;";
+            card.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-weight:700; color:#4338CA; font-size:0.9rem;">👤 ${log.user}</span>
+                    <span style="font-size:0.78rem; color:#9CA3AF;">${log.time}</span>
+                </div>
+                <p style="margin:0; color:#374151; font-size:0.92rem; line-height:1.5;">${noteText}</p>
+            `;
+            listesi.appendChild(card);
+        });
+
+        container.classList.remove("hidden");
+    }
+
     function renderPendingTable(data) {
+        const badge = document.getElementById("badge-atamasi");
+        if (badge) {
+            badge.textContent = data.length;
+            badge.classList.remove("hidden");
+            badge.style.background = data.length > 0 ? '#EF4444' : '#9CA3AF';
+        }
+        
         const tbody = document.querySelector("#atamasiBeklenenTable tbody");
         tbody.innerHTML = "";
         data.forEach(row => {
@@ -457,11 +599,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td style="white-space:nowrap"><span class="sla-badge" style="background-color:rgba(248, 140, 66, 0.05); color:${slaColor}; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;"><span style="margin-right:4px;">⏱️</span> ${slaText}</span></td>
+                <td style="white-space:nowrap">
+                    <span class="sla-badge" style="background-color:rgba(217, 119, 6, 0.05); color:${slaColor}; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;">
+                        <span style="margin-right:4px;">⏱️</span> ${slaText}
+                    </span>
+                    <br><span style="font-size:0.75rem; color:var(--text-muted); opacity:0.8; margin-top:4px; display:block;">Açılış: ${row['Dosya Açılış Tarihi'] || '-'}</span>
+                </td>
                 <td>${row['Hizmet No'] || '-'}</td>
-                <td><strong>${row['Dosya No'] || '-'}</strong></td>
-                <td>${row['Dosya Açılış Tarihi'] || '-'}</td>
+                <td>${row['Dosya No'] || '-'}</td>
                 <td>${row['Müşteri'] || '-'}</td>
+                <td>${row['İl'] || '-'}</td>
+                <td>${row['Teminat'] || '-'}</td>
                 <td>${row['Poliçe No'] || '-'}</td>
                 <td>${row['İsim'] || '-'}</td>
                 <td>${row['Soyisim'] || '-'}</td>
@@ -497,6 +645,9 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('atamaSoruContainer').classList.add("hidden");
         document.getElementById('btnTedarikciSec').classList.remove("hidden");
         
+        const noteContainer = document.getElementById('operasyonNotContainer');
+        if (noteContainer) noteContainer.classList.remove("hidden");
+        
         if (currentDosyaNo) {
             const now = new Date();
             const ts = now.toLocaleDateString('tr-TR') + " " + now.toLocaleTimeString('tr-TR');
@@ -504,16 +655,14 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem("atama_time_" + currentDosyaNo, ts);
             
             // Logu DOM'a anında enjekte et!
-            const logList = document.getElementById("atamaLogList");
-            if (logList) {
+            const logListElem = document.getElementById("atamaLogList");
+            if (logListElem) {
                 const li = document.createElement("li");
-                li.style.cssText = "padding:6px 0; border-bottom:1px dashed #E5E7EB; font-size:0.9rem;";
-                li.innerHTML = `
-                    <strong style="color:var(--primary-color)">[${ts}]</strong> 
-                    <span style="font-weight:600; color:#374151;">${user.adSoyad}:</span> 
-                    <span style="color:var(--text-muted)">Operatör Dosyayı Atama Sırasına Aldı</span>
-                `;
-                logList.appendChild(li);
+                li.style.padding = "6px 0";
+                li.style.borderBottom = "1px dashed #F3F4F6";
+                li.style.fontSize = "0.9rem";
+                li.innerHTML = `<strong style="color:var(--primary-color)">[${ts}]</strong> <span style="font-weight:600; color:#374151;">${user.adSoyad}:</span> <span style="color:var(--text-muted)">Operatör Dosyayı Atama Sırasına Aldı</span>`;
+                logListElem.appendChild(li);
             }
         }
     });
@@ -523,6 +672,91 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('btnAtamaBaslat').classList.remove("hidden");
     });
 
+    // Kaydet Button Logic for Operasyon Notu
+    const btnNotKaydet = document.getElementById('btnNotKaydet');
+    if (btnNotKaydet) {
+        btnNotKaydet.addEventListener('click', () => {
+            const noteText = document.getElementById("operasyonNotInput").value.trim();
+            if (!noteText) {
+                alert("Lütfen kaydetmek için bir not giriniz.");
+                return;
+            }
+            let assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
+            let assigned = assignments[currentDosyaNo];
+            const now = new Date();
+            const ts = now.toLocaleDateString('tr-TR') + " " + now.toLocaleTimeString('tr-TR');
+            const userLabel = (typeof user !== "undefined" && user.adSoyad) ? user.adSoyad : "Operatör";
+
+            if (!assigned) {
+                let rowData = null;
+                if (typeof pendingData !== "undefined") rowData = pendingData.find(r => r['Dosya No'] === currentDosyaNo);
+                
+                assigned = {
+                    dosyaNo: currentDosyaNo,
+                    fullData: rowData || {},
+                    logs: []
+                };
+                if (rowData && rowData['Dosya Açılış Tarihi']) {
+                    assigned.logs.push({ time: rowData['Dosya Açılış Tarihi'], user: 'Sistem', message: 'Dosya İşleme Alındı (Açılış)' });
+                }
+            }
+            if (!assigned.logs) assigned.logs = [];
+            
+            const newLog = { time: ts, user: userLabel, message: `Operasyon Notu: ${noteText}` };
+            assigned.logs.push(newLog);
+            
+            assignments[currentDosyaNo] = assigned;
+            localStorage.setItem('crosslink_assignments', JSON.stringify(assignments));
+            
+            // Doğrudan atamaLogList DOM'una ekle (modal kapatılmadan)
+            const logList = document.getElementById("atamaLogList");
+            if (logList) {
+                const li = document.createElement("li");
+                li.style.cssText = "padding:6px 0; border-bottom:1px dashed #E5E7EB; font-size:0.9rem;";
+                li.innerHTML = `
+                    <strong style="color:var(--primary-color)">[${ts}]</strong> 
+                    <span style="font-weight:600; color:#374151;">${userLabel}:</span> 
+                    <span style="color:#10B981; font-weight:500;">📝 Operasyon Notu: ${noteText}</span>
+                `;
+                logList.appendChild(li);
+                logList.parentElement.scrollTop = logList.parentElement.scrollHeight;
+            }
+
+            // "Eklenen Notlar" bölümüne de anında kart ekle
+            const notlarListesi = document.getElementById("notlarListesi");
+            const notlarContainer = document.getElementById("eklenenNotlarContainer");
+            if (notlarListesi && notlarContainer) {
+                const card = document.createElement("div");
+                card.style.cssText = "background:#F0F0FF; border:1px solid #C7D2FE; border-left:4px solid #4338CA; border-radius:8px; padding:10px 14px;";
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-weight:700; color:#4338CA; font-size:0.9rem;">👤 ${userLabel}</span>
+                        <span style="font-size:0.78rem; color:#9CA3AF;">${ts}</span>
+                    </div>
+                    <p style="margin:0; color:#374151; font-size:0.92rem; line-height:1.5;">${noteText}</p>
+                `;
+                notlarListesi.appendChild(card);
+                notlarContainer.classList.remove("hidden");
+                notlarListesi.scrollTop = notlarListesi.scrollHeight;
+            }
+
+            // Textarea'yı temizle ve kısa başarı mesajı göster
+            document.getElementById("operasyonNotInput").value = "";
+            const btn = document.getElementById("btnNotKaydet");
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = "✅ Kaydedildi!";
+            btn.style.background = "#D1FAE5";
+            btn.style.color = "#065F46";
+            btn.style.borderColor = "#6EE7B7";
+            setTimeout(() => {
+                btn.innerHTML = origHtml;
+                btn.style.background = "";
+                btn.style.color = "";
+                btn.style.borderColor = "";
+            }, 2000);
+        });
+    }
+
     // Supplier Select Modal Events
     document.getElementById('btnTedarikciSec').addEventListener('click', (e) => {
         try {
@@ -530,9 +764,13 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('atamaModal').classList.add("hidden");
             document.getElementById('tSecDosyaNo').textContent = currentDosyaNo;
             
-            const rowData = pendingData.find(r => r['Dosya No'] === currentDosyaNo);
+            let rowData = pendingData.find(r => r['Dosya No'] === currentDosyaNo);
+            const assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
+            if (!rowData && assignments[currentDosyaNo]) {
+                rowData = assignments[currentDosyaNo].fullData;
+            }
             if(!rowData) {
-                alert("Dosya verileri okunamadı! (RowData bulunamadı)");
+                alert("Dosya verileri okunamadı! (Kayıt bulunamadı)");
                 return;
             }
         
@@ -757,8 +995,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 let uzaklikDosya = !isNaN(dynamicHedefDosya) && dynamicHedefDosya > 0 ? (gercekDosyaTop / dynamicHedefDosya) * 100 : "-";
                 let uzaklikGun = !isNaN(dynamicHedefGun) && dynamicHedefGun > 0 ? (gercekGunTop / dynamicHedefGun) * 100 : "-";
-                // Tutar hedefe uzaklık belirtilmediğinden şimdilik boş bırakılıyor:
-                let uzaklikTutar = "-";
+                let uzaklikTutar = !isNaN(hTutarNum) && hTutarNum > 0 ? (gercekAveraj / hTutarNum) * 100 : "-";
 
                 function formatUzaklik(val, isTutar = false) {
                     if (val === "-") return "-";
@@ -778,6 +1015,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 const dispDevirGun = devirGun !== "-" ? (devirGun > 0 ? "+" + formatNumTr(devirGun) : formatNumTr(devirGun)) : "-";
                 const dispDevirBudget = devirOrtTutar !== "-" ? formatNumTr(devirOrtTutar) + " ₺" : "-";
 
+                let dtCol = '#0f172a';
+                if (devirOrtTutar !== "-" && devirOrtTutar !== undefined && !isNaN(hTutarNum) && hTutarNum > 0) {
+                    dtCol = devirOrtTutar < hTutarNum ? '#dc2626' : '#16a34a';
+                }
+
                 const dispGercekDosya = gercekDosyaTop > 0 ? formatNumTr(gercekDosyaTop) : "-";
                 const dispGercekGun = gercekGunTop > 0 ? formatNumTr(gercekGunTop) : "-";
                 const dispGercekTutar = gercekAveraj > 0 ? formatNumTr(gercekAveraj) + " ₺" : "-";
@@ -785,57 +1027,105 @@ document.addEventListener("DOMContentLoaded", () => {
                 const dispUzDosya = formatUzaklik(uzaklikDosya);
                 const dispUzGun = formatUzaklik(uzaklikGun);
                 const dispUzTutar = formatUzaklik(uzaklikTutar);
+                // --- DYNAMIC PRICING ENGINE ---
+                let sysGunlukTutar = "Bilinmiyor";
+                let sysDoviz = "TL";
+                
+                if (supplierPricingData && supplierPricingData.length > 0) {
+                    const normSupName = normalizeForSearch(sup.name);
+                    const isteneSegQuery = (isteneSegment || "").toLowerCase().trim();
+                    const musteriQuery = (rowData['Müşteri'] || "").toLowerCase().trim();
+                    
+                    // 1. Try Exact Match (Supplier + Customer)
+                    let matchedPricing = supplierPricingData.find(p => 
+                        normalizeForSearch(p['Tedarikçi']) === normSupName && 
+                        (p['Müşteri'] || "").toLowerCase().trim() === musteriQuery
+                    );
+                    
+                    // 2. Fallback to 'Varsayılan'
+                    if (!matchedPricing) {
+                         matchedPricing = supplierPricingData.find(p => 
+                            normalizeForSearch(p['Tedarikçi']) === normSupName && 
+                            (p['Müşteri'] || "").toLowerCase().includes("varsay")
+                        );
+                    }
+                    
+                    if (matchedPricing) {
+                        // Find the exact segment column matching requested Segment
+                        const segCol = Object.keys(matchedPricing).find(k => k.toLowerCase().trim() === isteneSegQuery);
+                        if (segCol && matchedPricing[segCol]) {
+                            // Fetch raw formatted value from Google Sheets directly preserving '1.200' strings
+                            sysGunlukTutar = matchedPricing[segCol];
+                            if (matchedPricing['Döviz Cinsi']) sysDoviz = matchedPricing['Döviz Cinsi'].trim();
+                        }
+                    }
+                }
+                const formattedGunlukTutar = sysGunlukTutar !== "Bilinmiyor" ? sysGunlukTutar + " " + (sysDoviz === "TL" ? "₺" : sysDoviz) : "Fiyat Listede Yok";
+
+                function getPctColor(valStr) {
+                    if (!valStr || valStr === "-") return "#0f172a";
+                    const n = Number(valStr.replace('%', '').replace(',', '.'));
+                    if (isNaN(n)) return "#0f172a";
+                    if (n < 50) return "#dc2626"; // Kırmızı
+                    if (n < 100) return "#d97706"; // Sarı / Turuncu
+                    return "#16a34a"; // Yeşil
+                }
 
                 card.innerHTML = `
                     <div style="display: flex; align-items: flex-start; flex: 1;">
                         ${rankCircle}
                         <div style="flex: 1; padding-right: 16px;">
-                            <h4 style="margin:0; color:#1F2937; font-size:1.05rem; display:flex; align-items:center;">
-                                ${isTopPriority ? '<span style="color:#d97706; margin-right:6px;">⭐</span> ' : ''}
-                                ${sup.name}
-                            </h4>
-                            <div style="margin:12px 0 0 0; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                            <div style="margin:0; color:#1F2937; font-size:1.05rem; display:flex; align-items:center; justify-content:space-between; width:100%; border-bottom:1px solid #E5E7EB; padding-bottom:8px; margin-bottom:12px;">
+                                <h4 style="margin:0; display:flex; align-items:center;">
+                                    ${isTopPriority ? '<span style="color:#d97706; margin-right:6px;">⭐</span> ' : ''}
+                                    ${sup.name}
+                                </h4>
+                                <span style="font-size:0.85rem; padding:4px 10px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:20px; font-weight:600;">
+                                    Günlük Tutar: ${formattedGunlukTutar}
+                                </span>
+                            </div>
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
                                 
                                 <!-- 1. Satır: Hedefler -->
                                 <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:12px; margin-bottom:10px;">
-                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block;">Hedef Dosya</span><strong style="color:#0f172a; font-size:0.9rem;">${displayDosya}</strong></div>
-                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block;">Hedef Gün</span><strong style="color:#0f172a; font-size:0.9rem;">${displayGun}</strong></div>
-                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block;">Hedef Ort. Tutar</span><strong style="color:#0f172a; font-size:0.9rem; white-space: nowrap;">${displayBudget}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedef Dosya</span><strong style="color:#0f172a; font-size:0.95rem;">${displayDosya}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedef Gün</span><strong style="color:#0f172a; font-size:0.95rem;">${displayGun}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedef Ort. Tutar</span><strong style="color:#0f172a; font-size:0.95rem; white-space: nowrap;">${displayBudget}</strong></div>
                                 </div>
                                 
                                 <!-- 2. Satır: Geçen Ay Verilen -->
-                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:8px; border-top:1px dashed #cbd5e1; padding-top:10px; margin-bottom:10px;">
-                                    <div><span style="font-size:0.65rem; color:#64748b; font-weight:500; line-height:1.1; display:block; margin-bottom:2px;">Geçen Ay Verilen Dosya</span><strong style="color:#334155; font-size:0.85rem;">${dispGecenDosya}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#64748b; font-weight:500; line-height:1.1; display:block; margin-bottom:2px;">Geçen Ay Harcanan Gün</span><strong style="color:#334155; font-size:0.85rem;">${dispGecenGun}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#64748b; font-weight:500; line-height:1.1; display:block; margin-bottom:2px;">Geçen Ay Segment Ort. Tutar</span><strong style="color:#334155; font-size:0.85rem;">${dispGecenTutar}</strong></div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:12px; border-top:1px dashed #cbd5e1; padding-top:10px; margin-bottom:10px;">
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Geçen Ay Verilen Dosya</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGecenDosya}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Geçen Ay Harcanan Gün</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGecenGun}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Geçen Ay Segment Ort. Tutar</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGecenTutar}</strong></div>
                                 </div>
 
                                 <!-- 3. Satır: Geçen Aydan Devir Eden -->
-                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:8px; border-top:1px dashed #cbd5e1; padding-top:10px; margin-bottom:10px;">
-                                    <div><span style="font-size:0.65rem; color:#64748b; font-weight:500; line-height:1.1; display:block; margin-bottom:2px;">Geçen Aydan Devir Eden Dosya</span><strong style="color:${devirDosya > 0 ? '#16a34a' : (devirDosya < 0 ? '#dc2626' : '#334155')}; font-size:0.85rem;">${dispDevirDosya}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#64748b; font-weight:500; line-height:1.1; display:block; margin-bottom:2px;">Geçen Aydan Devir Eden Gün</span><strong style="color:${devirGun > 0 ? '#16a34a' : (devirGun < 0 ? '#dc2626' : '#334155')}; font-size:0.85rem;">${dispDevirGun}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#64748b; font-weight:500; line-height:1.1; display:block; margin-bottom:2px;">Geçen Aydan Devir Eden Ort. Tutar</span><strong style="color:#334155; font-size:0.85rem;">${dispDevirBudget}</strong></div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:12px; border-top:1px dashed #cbd5e1; padding-top:10px; margin-bottom:10px;">
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Geçen Aydan Devir Eden Dosya</span><strong style="color:${devirDosya > 0 ? '#dc2626' : (devirDosya < 0 ? '#16a34a' : '#0f172a')}; font-size:0.95rem;">${dispDevirDosya}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Geçen Aydan Devir Eden Gün</span><strong style="color:${devirGun > 0 ? '#dc2626' : (devirGun < 0 ? '#16a34a' : '#0f172a')}; font-size:0.95rem;">${dispDevirGun}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Geçen Aydan Devir Eden Ort. Tutar</span><strong style="color:${dtCol}; font-size:0.95rem;">${dispDevirBudget}</strong></div>
                                 </div>
 
                                 <!-- 4. Satır: Gerçekleşen (Bu Ay) -->
-                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:8px; border-top:1px dashed #cbd5e1; padding-top:10px; margin-bottom:10px;">
-                                    <div><span style="font-size:0.65rem; color:#0f172a; font-weight:600; line-height:1.1; display:block; margin-bottom:2px;">Gerçekleşen Dosya</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGercekDosya}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#0f172a; font-weight:600; line-height:1.1; display:block; margin-bottom:2px;">Gerçekleşen Harcanan Gün</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGercekGun}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#0f172a; font-weight:600; line-height:1.1; display:block; margin-bottom:2px;">Gerçekleşen Ort. Tutar</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGercekTutar}</strong></div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:12px; border-top:1px dashed #cbd5e1; padding-top:10px; margin-bottom:10px;">
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Gerçekleşen Dosya</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGercekDosya}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Gerçekleşen Harcanan Gün</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGercekGun}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#64748b; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Gerçekleşen Ort. Tutar</span><strong style="color:#0f172a; font-size:0.95rem;">${dispGercekTutar}</strong></div>
                                 </div>
 
                                 <!-- 5. Satır: Uzaklıklar -->
-                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:8px; border-top:1px dashed #cbd5e1; padding-top:10px;">
-                                    <div><span style="font-size:0.65rem; color:#d97706; font-weight:600; line-height:1.1; display:block; margin-bottom:2px;">Hedefi Tamamlama (Dosya)</span><strong style="color:#b45309; font-size:0.85rem;">${dispUzDosya}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#d97706; font-weight:600; line-height:1.1; display:block; margin-bottom:2px;">Hedefi Tamamlama (Gün)</span><strong style="color:#b45309; font-size:0.85rem;">${dispUzGun}</strong></div>
-                                    <div><span style="font-size:0.65rem; color:#d97706; font-weight:600; line-height:1.1; display:block; margin-bottom:2px;">Hedefi Tamamlama (Tutar)</span><strong style="color:#b45309; font-size:0.85rem;">${dispUzTutar}</strong></div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:12px; border-top:1px dashed #cbd5e1; padding-top:10px;">
+                                    <div><span style="font-size:0.7rem; color:#1e3a8a; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedefi Tamamlama (Dosya)</span><strong style="color:${getPctColor(dispUzDosya)}; font-size:0.95rem;">${dispUzDosya}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#1e3a8a; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedefi Tamamlama (Gün)</span><strong style="color:${getPctColor(dispUzGun)}; font-size:0.95rem;">${dispUzGun}</strong></div>
+                                    <div><span style="font-size:0.7rem; color:#1e3a8a; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedefi Tamamlama (Tutar)</span><strong style="color:${getPctColor(dispUzTutar)}; font-size:0.95rem;">${dispUzTutar}</strong></div>
                                 </div>
                                 
                             </div>
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; justify-content: center; align-self: center; min-width: 140px;">
-                        <button class="action-btn atama-yap-btn" onclick="openConfirmModal('${currentDosyaNo}', '${sup.name.replace(/'/g, "\\'")}')" style="background:var(--primary-color); color:#fff; border:none; padding:0; width: 140px; height: 44px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(248, 140, 66, 0.2); transition: all 0.2s;">
+                        <button class="action-btn atama-yap-btn" onclick="openConfirmModal('${currentDosyaNo}', '${sup.name.replace(/'/g, "\\'")}', '${sysGunlukTutar !== "Bilinmiyor" ? sysGunlukTutar : "-"}', '${sysDoviz}')" style="background:var(--primary-color); color:#fff; border:none; padding:0; width: 140px; height: 44px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.95rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(248, 140, 66, 0.2); transition: all 0.2s;">
                             Dosyayı Ata
                         </button>
                     </div>
@@ -856,7 +1146,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('tedarikciSecModal').classList.add("hidden");
     });
 
-    window.openConfirmModal = function(dosyaNo, supplierName) {
+    window.openConfirmModal = function(dosyaNo, supplierName, gunlukTutar, dovizCinsi) {
         document.getElementById('confirmAtamaText').innerHTML = `Dosyayı <strong>"${supplierName}"</strong> tedarikçisine atamak istediğinize emin misiniz?`;
         document.getElementById('confirmAtamaModal').classList.remove("hidden");
         
@@ -874,36 +1164,57 @@ document.addEventListener("DOMContentLoaded", () => {
         
         newBtnEvet.addEventListener('click', () => {
             document.getElementById('confirmAtamaModal').classList.add("hidden");
-            executeAssignSupplier(dosyaNo, supplierName);
+            executeAssignSupplier(dosyaNo, supplierName, gunlukTutar, dovizCinsi);
         });
     };
 
-    function executeAssignSupplier(dosyaNo, supplierName) {
+    function executeAssignSupplier(dosyaNo, supplierName, gunlukTutar, dovizCinsi) {
         
+        const noteEl = document.getElementById("operasyonNotInput");
+        const opNote = noteEl ? noteEl.value.trim() : "";
+
         let assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
         const now = new Date();
         const ts = now.toLocaleDateString('tr-TR') + " " + now.toLocaleTimeString('tr-TR');
         
-        const rowData = pendingData.find(r => r['Dosya No'] === dosyaNo);
+        let rowData = pendingData.find(r => r['Dosya No'] === dosyaNo);
+        const isReassign = !!assignments[dosyaNo];
+
+        if (!rowData && isReassign) {
+            rowData = assignments[dosyaNo].fullData;
+        }
+
         const atamaYetkilisi = localStorage.getItem("atama_" + dosyaNo) || user.adSoyad;
 
-        // Propagate explicit history logs
-        let logs = [
-            { time: rowData && rowData['Dosya Açılış Tarihi'] ? rowData['Dosya Açılış Tarihi'] : ts, user: 'Sistem', message: 'Dosya Açıldı (Hasar)' }
-        ];
-        
-        const manualClaimStamp = localStorage.getItem("atama_time_" + dosyaNo);
-        if (manualClaimStamp) {
-             logs.push({ time: manualClaimStamp, user: atamaYetkilisi, message: 'Operatör Dosyayı Atama Sırasına Aldı' });
+        let logs = [];
+        if (isReassign && assignments[dosyaNo].logs) {
+            logs = assignments[dosyaNo].logs;
+            logs.push({ time: ts, user: atamaYetkilisi, message: `Tedarikçi Değiştirildi. Yeni Tedarikçi: ${supplierName}` });
+        } else {
+            logs = [
+                { time: rowData && rowData['Dosya Açılış Tarihi'] ? rowData['Dosya Açılış Tarihi'] : ts, user: 'Sistem', message: 'Dosya Açıldı' }
+            ];
+            
+            const manualClaimStamp = localStorage.getItem("atama_time_" + dosyaNo);
+            if (manualClaimStamp) {
+                 logs.push({ time: manualClaimStamp, user: atamaYetkilisi, message: 'Operatör Dosyayı Atama Sırasına Aldı' });
+            }
+            logs.push({ time: ts, user: atamaYetkilisi, message: `Tedarikçi Atandı: ${supplierName}` });
         }
         
-        logs.push({ time: ts, user: atamaYetkilisi, message: `Tedarikçi Atandı: ${supplierName}` });
+        if (opNote) {
+            logs.push({ time: ts, user: atamaYetkilisi, message: `Operasyon Notu: ${opNote}` });
+            localStorage.setItem('crosslink_op_not_' + dosyaNo, opNote);
+        }
 
         assignments[dosyaNo] = {
+            ...assignments[dosyaNo],
             dosyaNo: dosyaNo,
             supplier: supplierName,
             atamaci: atamaYetkilisi,
             assignedAt: ts,
+            gunlukTutar: gunlukTutar || '-',
+            doviz: dovizCinsi || 'TL',
             fullData: rowData,
             logs: logs
         };
@@ -915,6 +1226,9 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Hide from current pending table natively and re-render
         applyFiltersAndSort();
+        
+        // As well as sync the Delivery Data table if the supplier was changed there!
+        if (typeof window.loadDeliveryData === "function") window.loadDeliveryData();
     };
 
     // 8. Sorting and Filtering Logic
@@ -1085,7 +1399,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Update headers to show sort icon
         document.querySelectorAll("th[data-sort]").forEach(th => {
-            const text = th.textContent.replace(" ⬆", "").replace(" ⬇", "").replace(" ↕", "");
+            const text = th.textContent.replace(" ⬇", "").replace(" ⬆", "").replace(" ↕", "");
             if (th.getAttribute("data-sort") === sortCol) {
                 th.textContent = text + (sortDesc ? " ⬇" : " ⬆");
             } else {
@@ -1162,6 +1476,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const isIade = localStorage.getItem("crosslink_iade_date_" + dn) ? true : false;
             return !isTeslimat && !isIade;
         }).map(a => {
+            if (a.fullData) {
+                a.fullData['Tedarikçi Adı'] = a.supplier;
+                a.fullData['Tedarikçi'] = a.supplier;
+                if (a.gunlukTutar) a.fullData['Günlük Tutar'] = a.gunlukTutar;
+            }
             return {
                 ...a.fullData,
                 'Tedarikçi': a.supplier,
@@ -1206,16 +1525,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const ilSet = new Set(data.map(d => d['İl']).filter(Boolean));
         const teminatSet = new Set(data.map(d => d['Teminat']).filter(Boolean));
         const tedarikciSet = new Set(data.map(d => d['Tedarikçi']).filter(Boolean));
+        const segmentSet = new Set(data.map(d => d['Talep Edilen Araç Segmenti']).filter(Boolean)); // Changed from 'Talep Edilen Segment'
 
         const cm = (document.getElementById("filter-delivery-musteri") || {}).value;
         const ci = (document.getElementById("filter-delivery-il") || {}).value;
         const ct = (document.getElementById("filter-delivery-teminat") || {}).value;
         const cted = (document.getElementById("filter-delivery-tedarikci") || {}).value;
+        const cseg = (document.getElementById("filter-delivery-segment") || {}).value;
 
         fillCascadedSelect("filter-delivery-musteri", musteriSet, cm);
         fillCascadedSelect("filter-delivery-il", ilSet, ci);
         fillCascadedSelect("filter-delivery-teminat", teminatSet, ct);
         fillCascadedSelect("filter-delivery-tedarikci", tedarikciSet, cted);
+        fillCascadedSelect("filter-delivery-segment", segmentSet, cseg);
     }
 
     const btnResetDeliveryFilters = document.getElementById("btnResetDeliveryFilters");
@@ -1237,14 +1559,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const fil = (document.getElementById("filter-delivery-il") || {}).value;
         const fteminat = (document.getElementById("filter-delivery-teminat") || {}).value;
         const ftedarikci = (document.getElementById("filter-delivery-tedarikci") || {}).value;
+        const fpolice = normalizeText((document.getElementById("filter-delivery-police") || {}).value || "");
+        const fisim = normalizeText((document.getElementById("filter-delivery-isim") || {}).value || "");
+        const fsoyisim = normalizeText((document.getElementById("filter-delivery-soyisim") || {}).value || "");
+        const fsegment = (document.getElementById("filter-delivery-segment") || {}).value;
 
         let filtered = deliveryData.filter(r => {
             if (fhizmet && !(r['Hizmet No']||"").toLocaleLowerCase("tr-TR").includes(fhizmet)) return false;
             if (fdosya && !(r['Dosya No']||"").toLocaleLowerCase("tr-TR").includes(fdosya)) return false;
+            if (fpolice && !(r['Poliçe No']||"").toLocaleLowerCase("tr-TR").includes(fpolice)) return false;
+            if (fisim && !(r['İsim']||"").toLocaleLowerCase("tr-TR").includes(fisim)) return false;
+            if (fsoyisim && !(r['Soyisim']||"").toLocaleLowerCase("tr-TR").includes(fsoyisim)) return false;
             if (fmusteri && r['Müşteri'] !== fmusteri) return false;
             if (fil && r['İl'] !== fil) return false;
             if (fteminat && r['Teminat'] !== fteminat) return false;
             if (ftedarikci && r['Tedarikçi'] !== ftedarikci) return false;
+            if (fsegment && r['Talep Edilen Araç Segmenti'] !== fsegment) return false; // Changed from 'Talep Edilen Segment'
             return true;
         });
 
@@ -1291,15 +1621,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderDeliveryTable(data) {
+        const badge = document.getElementById("badge-teslimati");
+        if (badge) {
+            badge.textContent = data.length;
+            badge.classList.remove("hidden");
+            badge.style.background = data.length > 0 ? '#F59E0B' : '#9CA3AF';
+        }
+        
         const tbody = document.querySelector("#teslimatiBeklenenTable tbody");
         if(!tbody) return;
         tbody.innerHTML = "";
-
         if (data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Teslimatı beklenen hizmet bulunamadı.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:24px; color:var(--text-muted);">Teslimatı beklenen hizmet bulunamadı.</td></tr>`;
             return;
         }
 
+        window.currentDeliveryFiltered = data; // Export için dışarıya alıyoruz
+        
         data.forEach(r => {
             const slaText = calculateSLA(r['Dosya Açılış Tarihi']);
             const match = slaText.match(/(\d+) Saat/);
@@ -1307,15 +1645,24 @@ document.addEventListener("DOMContentLoaded", () => {
             const slaColor = hours > 24 ? '#EF4444' : '#10B981';
 
             const tr = document.createElement("tr");
-
+            
             tr.innerHTML = `
-                <td><span class="status-badge status-open">${r['Tedarikçi'] || '-'}</span></td>
+                <td style="white-space:nowrap">
+                    <span class="sla-badge" style="background-color:rgba(217, 119, 6, 0.05); color:${slaColor}; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;">
+                        <span style="margin-right:4px;">⏱️</span> ${slaText}
+                    </span>
+                    <br><span style="font-size:0.75rem; color:var(--text-muted); opacity:0.8; margin-top:4px; display:block;">Açılış: ${r['Dosya Açılış Tarihi'] || '-'}</span>
+                </td>
+                <td>${r['Tedarikçi'] || '-'}</td>
                 <td>${r['Hizmet No'] || '-'}</td>
-                <td><strong>${r['Dosya No'] || '-'}</strong></td>
-                <td><span class="sla-badge" style="background-color:rgba(248, 140, 66, 0.05); color:${slaColor}; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;"><span style="margin-right:4px;">⏱️</span> ${slaText}</span><br><span style="font-size:0.75rem; color:#6B7280; display:block; margin-top:4px;">Açılış: ${r['Dosya Açılış Tarihi']}</span></td>
+                <td>${r['Dosya No'] || '-'}</td>
                 <td>${r['Müşteri'] || '-'}</td>
                 <td>${r['İl'] || '-'}</td>
                 <td>${r['Teminat'] || '-'}</td>
+                <td>${r['Poliçe No'] || '-'}</td>
+                <td>${r['İsim'] || '-'}</td>
+                <td>${r['Soyisim'] || '-'}</td>
+                <td>${r['Talep Edilen Araç Segmenti'] || '-'}</td>
                 <td>
                     <button class="action-btn btn-teslimat-incele" data-dosya="${r['Dosya No']}" style="background-color:#E3F2FD; color:#1976D2; border-color:#BBDEFB; padding:6px 12px; font-size:0.9rem;">
                         <span style="margin-right:4px;">👁️</span> İncele
@@ -1333,6 +1680,108 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Teslimatı Beklenenler Export
+    if(document.getElementById("btnExportDelivery")) {
+        document.getElementById("btnExportDelivery").addEventListener("click", () => {
+            if (!window.currentDeliveryFiltered || window.currentDeliveryFiltered.length === 0) {
+                alert("Dışa aktarılacak kayıt bulunamadı.");
+                return;
+            }
+            
+            const excludedKeys = ['Drop Çarpan', 'Drop Toplam'];
+            let csvContent = "";
+            let allKeys = Object.keys(window.currentDeliveryFiltered[0]);
+            
+            if (!allKeys.includes("Günlük Tutar")) allKeys.push("Günlük Tutar");
+            if (!allKeys.includes("Gün")) allKeys.push("Gün");
+            if (!allKeys.includes("Toplam Tutarı") && !allKeys.includes("Toplam Tutar")) allKeys.push("Toplam Tutar");
+
+            const headerKeys = allKeys.filter(key => !excludedKeys.some(ex => key.includes(ex)));
+            
+            csvContent += headerKeys.map(h => `"${h}"`).join(";") + "\n";
+            window.currentDeliveryFiltered.forEach(r => {
+                let tutarObj = { gunlukTutar: '-', gunBilgisi: '-', toplamTutar: '-' };
+                if (typeof window.computeTutarsal === "function") {
+                    tutarObj = window.computeTutarsal(r['Dosya No'], r);
+                }
+                const rGunluk = (tutarObj.gunlukTutar !== '-' && !tutarObj.gunlukTutar.toString().includes('₺') && !tutarObj.gunlukTutar.toString().includes('€')) ? tutarObj.gunlukTutar + ' ' + tutarObj.doviz : tutarObj.gunlukTutar || '-';
+                const rToplam = (tutarObj.toplamTutar !== '-' && !tutarObj.toplamTutar.toString().includes('₺') && !tutarObj.toplamTutar.toString().includes('€')) ? tutarObj.toplamTutar + ' ' + tutarObj.doviz : tutarObj.toplamTutar || '-';
+                
+                r['Günlük Tutar'] = rGunluk;
+                r['Gün'] = tutarObj.gunBilgisi;
+                if(r.hasOwnProperty('Toplam Tutarı')) r['Toplam Tutarı'] = rToplam;
+                else r['Toplam Tutar'] = rToplam;
+
+                const rowData = headerKeys.map(key => {
+                    let text = (r[key] || "").toString().trim().replace(/"/g, '""');
+                    return `"${text}"`;
+                });
+                csvContent += rowData.join(";") + "\n";
+            });
+            
+            csvContent = "\uFEFF" + csvContent;
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `teslimati_beklenenler_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+
+    if(document.getElementById("btnExportOngoing")) {
+        document.getElementById("btnExportOngoing").addEventListener("click", () => {
+            if (!activeRentalsData || activeRentalsData.length === 0) {
+                alert("Dışa aktarılacak kayıt bulunamadı.");
+                return;
+            }
+            const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'logs', '_acikGun'];
+            let csvContent = "";
+            let allKeys = Object.keys(activeRentalsData[0]);
+            
+            if (!allKeys.includes("Günlük Tutar")) allKeys.push("Günlük Tutar");
+            if (!allKeys.includes("Gün")) allKeys.push("Gün");
+            if (!allKeys.includes("Toplam Tutarı") && !allKeys.includes("Toplam Tutar")) allKeys.push("Toplam Tutar");
+
+            const headerKeys = allKeys.filter(key => !excludedKeys.some(ex => key.includes(ex)));
+            
+            csvContent += headerKeys.map(h => `"${h}"`).join(";") + "\n";
+            const currentOngoingFiltered = window.currentOngoingFiltered || activeRentalsData;
+            
+            currentOngoingFiltered.forEach(r => {
+                let tutarObj = { gunlukTutar: '-', gunBilgisi: '-', toplamTutar: '-' };
+                if (typeof window.computeTutarsal === "function") {
+                    tutarObj = window.computeTutarsal(r['Dosya No'], r);
+                }
+                const rGunluk = (tutarObj.gunlukTutar !== '-' && !tutarObj.gunlukTutar.toString().includes('₺') && !tutarObj.gunlukTutar.toString().includes('€')) ? tutarObj.gunlukTutar + ' ' + tutarObj.doviz : tutarObj.gunlukTutar || '-';
+                const rToplam = (tutarObj.toplamTutar !== '-' && !tutarObj.toplamTutar.toString().includes('₺') && !tutarObj.toplamTutar.toString().includes('€')) ? tutarObj.toplamTutar + ' ' + tutarObj.doviz : tutarObj.toplamTutar || '-';
+                
+                r['Günlük Tutar'] = rGunluk;
+                r['Gün'] = tutarObj.gunBilgisi;
+                if(r.hasOwnProperty('Toplam Tutarı')) r['Toplam Tutarı'] = rToplam;
+                else r['Toplam Tutar'] = rToplam;
+
+                const rowData = headerKeys.map(key => {
+                    let text = (r[key] || "").toString().trim().replace(/"/g, '""');
+                    return `"${text}"`;
+                });
+                csvContent += rowData.join(";") + "\n";
+            });
+            
+            csvContent = "\uFEFF" + csvContent;
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `kullanimi_devam_edenler_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+
     window.openTeslimatModal = function(dosyaNo) {
         const rowData = deliveryData.find(r => r['Dosya No'] === dosyaNo);
         if (!rowData) return;
@@ -1340,6 +1789,8 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('inceleDosyaHeader').textContent = dosyaNo;
         const grid = document.getElementById('inceleGridContainer');
         grid.innerHTML = "";
+        const logsContainer = document.getElementById('inceleLogsContainer');
+        if (logsContainer) logsContainer.innerHTML = "";
 
         const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs'];
 
@@ -1366,10 +1817,11 @@ document.addEventListener("DOMContentLoaded", () => {
             if(rowData.logs && rowData.logs.length > 0) {
                 logsHtml += `<ul style="list-style:none; padding:0; margin:0;">`;
                 rowData.logs.forEach(log => {
+                    const cleanMsg = (log.message || "").replace(" (Hasar)", "");
                     logsHtml += `<li style="padding:6px 0; border-bottom:1px dashed #F3F4F6; font-size:0.9rem;">
                         <strong style="color:var(--primary-color)">[${log.time}]</strong> 
                         <span style="font-weight:600; color:#374151;">${log.user}:</span> 
-                        <span style="color:var(--text-muted)">${log.message}</span>
+                        <span style="color:var(--text-muted)">${cleanMsg}</span>
                     </li>`;
                 });
                 logsHtml += `</ul>`;
@@ -1377,9 +1829,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 logsHtml += `<p style="color:var(--text-muted); font-size:0.9rem;">Henüz bir eylem kaydedilmedi.</p>`;
             }
             logsBox.innerHTML = logsHtml;
-            grid.appendChild(logsBox);
+            if (document.getElementById('inceleLogsContainer')) document.getElementById('inceleLogsContainer').appendChild(logsBox);
         }
-
+        
+        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, grid);
+        
+        currentDosyaNo = dosyaNo;
+        const footer = document.getElementById('inceleModalFooter');
+        if (footer) {
+            if (user && user.atamaYetkisi && user.atamaYetkisi.trim().toLowerCase() === "evet") {
+                footer.classList.remove("hidden");
+            } else {
+                footer.classList.add("hidden");
+            }
+        }
+        
         document.getElementById('inceleModal').classList.remove("hidden");
     };
 
@@ -1397,8 +1861,62 @@ document.addEventListener("DOMContentLoaded", () => {
             const isIade = localStorage.getItem("crosslink_iade_date_" + dn) ? true : false;
             return isTeslimat && !isIade;
         }).map(a => {
-            const dn = a.fullData['Dosya No'];
+            const dn = a.fullData ? a.fullData['Dosya No'] : null;
+            if(!dn) return a;
             const teslimStr = localStorage.getItem("crosslink_teslimat_date_" + dn) || "";
+            const iadeStr = localStorage.getItem("crosslink_iade_date_" + dn) || "";
+            const hakedisStr = localStorage.getItem("crosslink_hakedis_date_" + dn) || "";
+            
+            const plaka = localStorage.getItem("crosslink_plaka_" + dn) || "-";
+            const marka = localStorage.getItem("crosslink_marka_" + dn) || "-";
+            const model = localStorage.getItem("crosslink_model_" + dn) || "-";
+            const km = localStorage.getItem("crosslink_km_" + dn) || "-";
+            const yil = localStorage.getItem("crosslink_yil_" + dn) || "-";
+            const segment = localStorage.getItem("crosslink_segment_" + dn) || "-";
+
+            if (a.fullData) {
+                a.fullData['Tedarikçi Adı'] = a.supplier;
+                a.fullData['Tedarikçi'] = a.supplier;
+                
+                // Dynamic Pricing Calculation: Decrease price if provided segment is cheaper than requested segment
+                const isteneSegment = a.fullData['Talep Edilen Araç Segmenti'] || "";
+                if (segment && segment !== "-" && isteneSegment && segment !== isteneSegment && typeof supplierPricingData !== 'undefined') {
+                    const normSupName = normalizeForSearch(a.supplier);
+                    const musteriQuery = (a.fullData['Müşteri'] || "").toLowerCase().trim();
+                    let matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && (p['Müşteri'] || "").toLowerCase().trim() === musteriQuery);
+                    if (!matchedPricing) {
+                        matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && (p['Müşteri'] || "").toLowerCase().includes("varsay"));
+                    }
+                    if (matchedPricing) {
+                        const isteneCol = Object.keys(matchedPricing).find(k => k.toLowerCase().trim() === isteneSegment.toLowerCase().trim());
+                        const givenCol = Object.keys(matchedPricing).find(k => k.toLowerCase().trim() === segment.toLowerCase().trim());
+                        
+                        if (isteneCol && givenCol && matchedPricing[isteneCol] && matchedPricing[givenCol]) {
+                            const reqPriceRaw = parseFloat(String(matchedPricing[isteneCol]).replace(/\./g, "").replace(/,/g, "."));
+                            const givenPriceRaw = parseFloat(String(matchedPricing[givenCol]).replace(/\./g, "").replace(/,/g, "."));
+                            
+                            if (!isNaN(reqPriceRaw) && !isNaN(givenPriceRaw) && givenPriceRaw < reqPriceRaw) {
+                                a.gunlukTutar = String(matchedPricing[givenCol]); // Re-assign natively to cheaper given segment price
+                            }
+                        }
+                    }
+                }
+                
+                if (a.gunlukTutar) a.fullData['Günlük Tutar'] = a.gunlukTutar;
+                
+                a.fullData['Teslimat Tarihi'] = teslimStr || "-"; // Binds logically to the expected modal box
+                a.fullData['İade Tarihi'] = iadeStr || "-";
+                a.fullData['Hakediş Tarihi'] = hakedisStr || "-";
+                
+                a.fullData['Araç Teslim Tarihi'] = teslimStr;
+                a.fullData['Plaka'] = plaka;
+                a.fullData['Marka'] = marka;
+                a.fullData['Model'] = model;
+                a.fullData['Kilometre'] = km;
+                a.fullData['Araç Yılı'] = yil;
+                a.fullData['İkame Araç Segmenti'] = segment; // Assured fallback mapping
+            }
+
             return {
                 ...a.fullData,
                 'Tedarikçi': a.supplier,
@@ -1444,6 +1962,8 @@ document.addEventListener("DOMContentLoaded", () => {
         fillSelect("filter-ongoing-tedarikci", "Tedarikçi");
         fillSelect("filter-ongoing-il", "İl");
         fillSelect("filter-ongoing-segment", "Talep Edilen Araç Segmenti");
+        fillSelect("filter-ongoing-musteri", "Müşteri");
+        fillSelect("filter-ongoing-teminat", "Teminat");
     }
 
     const btnResetOngoingFilters = document.getElementById("btnResetOngoingFilters");
@@ -1459,18 +1979,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function applyOngoingFiltersAndSort() {
-        const fdosya = normalizeText(document.getElementById("filter-ongoing-dosya").value || "");
-        const fhizmet = normalizeText(document.getElementById("filter-ongoing-hizmet").value || "");
+        const fdosya = normalizeText(document.getElementById("filter-ongoing-dosya")?.value || "");
+        const fhizmet = normalizeText(document.getElementById("filter-ongoing-hizmet")?.value || "");
         const ftedarikci = (document.getElementById("filter-ongoing-tedarikci") || {}).value;
         const fil = (document.getElementById("filter-ongoing-il") || {}).value;
         const fseg = (document.getElementById("filter-ongoing-segment") || {}).value;
 
+        const fmusteri = (document.getElementById("filter-ongoing-musteri") || {}).value;
+        const fpolice = normalizeText(document.getElementById("filter-ongoing-police")?.value || "");
+        const fisim = normalizeText(document.getElementById("filter-ongoing-isim")?.value || "");
+        const fsoyisim = normalizeText(document.getElementById("filter-ongoing-soyisim")?.value || "");
+        const fteminat = (document.getElementById("filter-ongoing-teminat") || {}).value;
+
         let filtered = activeRentalsData.filter(r => {
             if (fdosya && !(r['Dosya No']||"").toLocaleLowerCase("tr-TR").includes(fdosya)) return false;
             if (fhizmet && !(r['Hizmet No']||"").toLocaleLowerCase("tr-TR").includes(fhizmet)) return false;
+            if (fpolice && !(r['Poliçe No']||"").toLocaleLowerCase("tr-TR").includes(fpolice)) return false;
+            if (fisim && !(r['İsim']||"").toLocaleLowerCase("tr-TR").includes(fisim)) return false;
+            if (fsoyisim && !(r['Soyisim']||"").toLocaleLowerCase("tr-TR").includes(fsoyisim)) return false;
+
             if (ftedarikci && r['Tedarikçi'] !== ftedarikci) return false;
             if (fil && r['İl'] !== fil) return false;
             if (fseg && r['Talep Edilen Araç Segmenti'] !== fseg) return false;
+            if (fmusteri && r['Müşteri'] !== fmusteri) return false;
+            if (fteminat && r['Teminat'] !== fteminat) return false;
+            
             return true;
         });
 
@@ -1485,8 +2018,13 @@ document.addEventListener("DOMContentLoaded", () => {
                          d.setHours(0,0,0,0);
                          const cur = new Date();
                          cur.setHours(0,0,0,0);
-                         const diff = Math.abs(cur - d);
-                         acikGun = Math.floor(diff / (1000 * 60 * 60 * 24));
+                         const diffHours = Math.abs(cur - d) / (1000 * 60 * 60);
+                         
+                         if (diffHours <= 27) {
+                             acikGun = 1;
+                         } else {
+                             acikGun = Math.ceil((diffHours - 27) / 24) + 1;
+                         }
                      }
                  } catch(e) {}
             }
@@ -1548,6 +2086,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderOngoingTable(data) {
+        const badge = document.getElementById("badge-devam");
+        if (badge) {
+            badge.textContent = data.length;
+            badge.classList.remove("hidden");
+            badge.style.background = data.length > 0 ? '#3B82F6' : '#9CA3AF';
+        }
+
         const tbody = document.querySelector("#kullanimiDevamEdenTable tbody");
         if(!tbody) return;
         tbody.innerHTML = "";
@@ -1560,13 +2105,20 @@ document.addEventListener("DOMContentLoaded", () => {
         data.forEach(r => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td><span class="status-badge" style="background:#FEF3C7; color:#D97706;">${r['Tedarikçi'] || '-'}</span></td>
-                <td><strong>${r['Dosya No'] || '-'}</strong></td>
-                <td><span style="font-size:0.85rem">${r['Dosya Açılış Tarihi'] || '-'}</span></td>
-                <td><strong style="color:var(--primary-color)">${r['Araç Teslim Tarihi'] || '-'}</strong></td>
-                <td><strong style="color:#D97706; font-size:1.1rem">${r._acikGun > 0 ? r._acikGun : '0'} Gün</strong></td>
+                <td style="white-space:nowrap">
+                    <span class="sla-badge" style="background-color:rgba(59, 130, 246, 0.08); color:#3B82F6; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;">
+                        <span style="margin-right:4px;">🚗</span> ${r['Tedarikçi'] || '-'}
+                    </span>
+                </td>
+                <td>${r['Hizmet No'] || '-'}</td>
+                <td>${r['Dosya No'] || '-'}</td>
                 <td>${r['Müşteri'] || '-'}</td>
+                <td>${r['İsim'] || '-'}</td>
+                <td>${r['Soyisim'] || '-'}</td>
                 <td>${r['İl'] || '-'}</td>
+                <td>${r['Araç Teslim Tarihi'] || '-'}</td>
+                <td>${r._acikGun > 0 ? r._acikGun : '1'} Gün</td>
+                <td>${r['Teminat'] || '-'}</td>
                 <td>${r['Talep Edilen Araç Segmenti'] || '-'}</td>
                 <td>
                     <button class="action-btn btn-ongoing-incele" data-dosya="${r['Dosya No']}" style="background-color:#FFFBEB; color:#D97706; border-color:#FDE68A; padding:6px 12px; font-size:0.9rem;">
@@ -1592,8 +2144,10 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('inceleDosyaHeader').textContent = dosyaNo;
         const grid = document.getElementById('inceleGridContainer');
         grid.innerHTML = "";
+        const logsContainer = document.getElementById('inceleLogsContainer');
+        if (logsContainer) logsContainer.innerHTML = "";
 
-        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs', '_acikGun'];
+        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs', '_acikGun', 'Araç Teslim Tarihi', 'Tedarikçi Adı', 'Tedarikçi'];
 
         Object.keys(rowData).forEach(key => {
             if (excludedKeys.some(ex => key.includes(ex))) return;
@@ -1616,10 +2170,11 @@ document.addEventListener("DOMContentLoaded", () => {
             if(rowData.logs && rowData.logs.length > 0) {
                 logsHtml += `<ul style="list-style:none; padding:0; margin:0;">`;
                 rowData.logs.forEach(log => {
+                    const cleanMsg = (log.message || "").replace(" (Hasar)", "");
                     logsHtml += `<li style="padding:6px 0; border-bottom:1px dashed #F3F4F6; font-size:0.9rem;">
                         <strong style="color:var(--primary-color)">[${log.time}]</strong> 
                         <span style="font-weight:600; color:#374151;">${log.user}:</span> 
-                        <span style="color:var(--text-muted)">${log.message}</span>
+                        <span style="color:var(--text-muted)">${cleanMsg}</span>
                     </li>`;
                 });
                 logsHtml += `</ul>`;
@@ -1627,9 +2182,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 logsHtml += `<p style="color:var(--text-muted); font-size:0.9rem;">Henüz bir eylem kaydedilmedi.</p>`;
             }
             logsBox.innerHTML = logsHtml;
-            grid.appendChild(logsBox);
+            if (document.getElementById('inceleLogsContainer')) document.getElementById('inceleLogsContainer').appendChild(logsBox);
         }
 
+        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, grid);
+        if (document.getElementById('inceleModalFooter')) document.getElementById('inceleModalFooter').classList.add("hidden");
         document.getElementById('inceleModal').classList.remove("hidden");
     };
 
@@ -1811,6 +2368,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderCompletedTable(data) {
+        const badge = document.getElementById("badge-biten");
+        if (badge) {
+            badge.textContent = data.length;
+            badge.classList.remove("hidden");
+            badge.style.background = data.length > 0 ? '#10B981' : '#9CA3AF';
+        }
+
         const tbody = document.querySelector("#completedTable tbody");
         tbody.innerHTML = "";
 
@@ -1831,7 +2395,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td style="white-space:nowrap"><span class="sla-badge" style="background-color:rgba(248, 140, 66, 0.05); color:${slaColor}; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;"><span style="margin-right:4px;">⏱️</span> ${slaText}</span></td>
                 <td><span class="status-badge status-closed">${r['Tedarikçi'] || '-'}</span></td>
                 <td>${r['Hizmet No'] || '-'}</td>
-                <td><strong>${r['Dosya No'] || '-'}</strong></td>
+                <td>${r['Dosya No'] || '-'}</td>
                 <td style="white-space:nowrap">${r['Dosya Açılış Tarihi'] || '-'}</td>
                 <td>${r['Müşteri'] || '-'}</td>
                 <td>${r['İl'] || '-'}</td>
@@ -1866,6 +2430,8 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('inceleDosyaHeader').textContent = dosyaNo;
         const grid = document.getElementById('inceleGridContainer');
         grid.innerHTML = "";
+        const logsContainer = document.getElementById('inceleLogsContainer');
+        if (logsContainer) logsContainer.innerHTML = "";
 
         const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar'];
 
@@ -1881,12 +2447,22 @@ document.addEventListener("DOMContentLoaded", () => {
             grid.appendChild(div);
         });
 
+        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, grid);
+        if (document.getElementById('inceleModalFooter')) document.getElementById('inceleModalFooter').classList.add("hidden");
         document.getElementById('inceleModal').classList.remove("hidden");
     };
 
     document.getElementById('closeInceleModal').addEventListener('click', () => {
         document.getElementById('inceleModal').classList.add("hidden");
     });
+    
+    if (document.getElementById('btnInceleTedarikciDegistir')) {
+        document.getElementById('btnInceleTedarikciDegistir').addEventListener('click', () => {
+            document.getElementById('inceleModal').classList.add("hidden");
+            // Reuse the existing populated supplier selection logic!
+            document.getElementById('btnTedarikciSec').click();
+        });
+    }
 
     document.getElementById("btnExportCompleted").addEventListener("click", () => {
         if (!window.currentCompletedFiltered || window.currentCompletedFiltered.length === 0) {
@@ -1894,15 +2470,31 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar'];
+        const excludedKeys = ['Drop Çarpan', 'Drop Toplam'];
         let csvContent = "";
         
-        const allKeys = Object.keys(window.currentCompletedFiltered[0]);
+        let allKeys = Object.keys(window.currentCompletedFiltered[0]);
+        if (!allKeys.includes("Günlük Tutar")) allKeys.push("Günlük Tutar");
+        if (!allKeys.includes("Gün")) allKeys.push("Gün");
+        if (!allKeys.includes("Toplam Tutarı") && !allKeys.includes("Toplam Tutar")) allKeys.push("Toplam Tutar");
+
         const headerKeys = allKeys.filter(key => !excludedKeys.some(ex => key.includes(ex)));
         
         csvContent += headerKeys.map(h => `"${h}"`).join(";") + "\n";
 
         window.currentCompletedFiltered.forEach(r => {
+            let tutarObj = { gunlukTutar: '-', gunBilgisi: '-', toplamTutar: '-' };
+            if (typeof window.computeTutarsal === "function") {
+                tutarObj = window.computeTutarsal(r['Dosya No'], r);
+            }
+            const rGunluk = (tutarObj.gunlukTutar !== '-' && !tutarObj.gunlukTutar.toString().includes('₺') && !tutarObj.gunlukTutar.toString().includes('€')) ? tutarObj.gunlukTutar + ' ' + tutarObj.doviz : tutarObj.gunlukTutar || '-';
+            const rToplam = (tutarObj.toplamTutar !== '-' && !tutarObj.toplamTutar.toString().includes('₺') && !tutarObj.toplamTutar.toString().includes('€')) ? tutarObj.toplamTutar + ' ' + tutarObj.doviz : tutarObj.toplamTutar || '-';
+            
+            r['Günlük Tutar'] = rGunluk;
+            r['Gün'] = tutarObj.gunBilgisi;
+            if(r.hasOwnProperty('Toplam Tutarı')) r['Toplam Tutarı'] = rToplam;
+            else r['Toplam Tutar'] = rToplam;
+
             const rowData = headerKeys.map(key => {
                 let text = (r[key] || "").toString().trim().replace(/"/g, '""');
                 return `"${text}"`;
@@ -1920,4 +2512,134 @@ document.addEventListener("DOMContentLoaded", () => {
         document.body.removeChild(link);
     });
 
+});
+
+// ==========================================
+// Tutarsal Veriler Popülasyon ve Hesaplama Modülü
+// ==========================================
+window.computeTutarsal = function(dosyaNo, rowData) {
+    let gunlukTutarText = '-';
+    let gunBilgisiText = '-';
+    let toplamTutarText = '-';
+    let dovizText = '₺'; // default TL
+
+    // 1. Excel'den Direkt Çekmeyi Dene
+    if (rowData && rowData['Günlük Tutar']) {
+        gunlukTutarText = rowData['Günlük Tutar'];
+    }
+    if (rowData && rowData['Gün']) {
+        gunBilgisiText = rowData['Gün'] + ' Gün';
+    }
+    if (rowData && (rowData['Toplam Tutarı'] || rowData['Toplam Tutar'] || rowData['Toplam Hizmet Tutarı'])) {
+        toplamTutarText = rowData['Toplam Tutarı'] || rowData['Toplam Tutar'] || rowData['Toplam Hizmet Tutarı'];
+    }
+
+    // 2. Günlük Tutar yoksa Assignment'dan al
+    let assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || '{}');
+    let assigned = assignments[dosyaNo];
+    if ((gunlukTutarText === '-' || !gunlukTutarText) && assigned && assigned.gunlukTutar && assigned.gunlukTutar !== '-') {
+        gunlukTutarText = assigned.gunlukTutar;
+        if (assigned.doviz) dovizText = assigned.doviz === 'TL' ? '₺' : assigned.doviz;
+    }
+
+    // 3. Gün Bilgisi yoksa (Devam Eden/Beklenen süreçler), Hakediş/İade vs Teslimat üzerinden hesapla
+    if (gunBilgisiText === '-' || !gunBilgisiText || gunBilgisiText === ' Gün') {
+        let tesDateStr = rowData ? rowData['Teslimat Tarihi'] : null;
+        let hakedisDateStr = rowData ? rowData['Hakediş Tarihi'] : null;
+        let iadeDateStr = rowData ? rowData['İade Tarihi'] : null;
+
+        const localTes = localStorage.getItem("crosslink_teslimat_date_" + dosyaNo);
+        if (localTes) tesDateStr = localTes;
+        const localIade = localStorage.getItem("crosslink_iade_date_" + dosyaNo);
+        if (localIade) iadeDateStr = localIade;
+
+        let endDateStr = null;
+        if (hakedisDateStr && hakedisDateStr !== '-' && hakedisDateStr.trim() !== '') {
+            endDateStr = hakedisDateStr;
+        } else if (iadeDateStr && iadeDateStr !== '-' && iadeDateStr.trim() !== '') {
+            endDateStr = iadeDateStr;
+        }
+
+        if (tesDateStr && tesDateStr !== '-' && endDateStr) {
+            const parseTurkishDateObj = (dateStr) => {
+                if (!dateStr || typeof dateStr !== 'string') return null;
+                const parts = dateStr.trim().split(' ')[0].split('.');
+                if (parts.length === 3) return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                return null;
+            };
+
+            const pTes = parseTurkishDateObj(tesDateStr);
+            const pEnd = parseTurkishDateObj(endDateStr);
+            
+            if (pTes && pEnd) {
+                const diffTime = Math.abs(pEnd - pTes);
+                let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if(diffDays === 0) diffDays = 1;
+
+                if (!isNaN(diffDays)) {
+                    gunBilgisiText = diffDays + ' Gün';
+                    
+                    if (gunlukTutarText !== '-' && (toplamTutarText === '-' || !toplamTutarText)) {
+                        let parsedTutar = parseFloat(gunlukTutarText.toString().replace(/\./g, '').replace(',', '.'));
+                        if (!isNaN(parsedTutar)) {
+                            let top = parsedTutar * diffDays;
+                            toplamTutarText = new Intl.NumberFormat('tr-TR').format(top);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return { 
+        gunlukTutar: gunlukTutarText, 
+        gunBilgisi: gunBilgisiText, 
+        toplamTutar: toplamTutarText, 
+        doviz: dovizText 
+    };
+};
+
+window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
+    if (!gridContainer) return;
+    const vals = window.computeTutarsal(dosyaNo, rowData);
+
+    const fGunluk = (vals.gunlukTutar !== '-' && !vals.gunlukTutar.toString().includes('₺') && !vals.gunlukTutar.toString().includes('€')) ? vals.gunlukTutar + ' ' + vals.doviz : vals.gunlukTutar || '-';
+    const fToplam = (vals.toplamTutar !== '-' && !vals.toplamTutar.toString().includes('₺') && !vals.toplamTutar.toString().includes('€')) ? vals.toplamTutar + ' ' + vals.doviz : vals.toplamTutar || '-';
+
+    const tutarBox = document.createElement('div');
+    tutarBox.className = "modal-data-group";
+    tutarBox.style.gridColumn = "1 / -1";
+    tutarBox.style.marginTop = "16px";
+    tutarBox.style.paddingTop = "16px";
+    tutarBox.style.borderTop = "1px solid #E5E7EB";
+    
+    tutarBox.innerHTML = `
+        <h4 class="modal-data-title" style="margin-bottom: 12px; font-size:1.1rem;">Tutarsal Veriler</h4>
+        <div class="modal-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="modal-field">
+                <span class="modal-label">Günlük Tutar</span>
+                <div class="modal-value-box" style="color:#d97706; font-weight:700; font-size:1.1rem;">${fGunluk}</div>
+            </div>
+            <div class="modal-field">
+                <span class="modal-label">Gün Bilgisi</span>
+                <div class="modal-value-box" style="font-weight:700; font-size:1.1rem;">${vals.gunBilgisi || '-'}</div>
+            </div>
+            <div class="modal-field">
+                <span class="modal-label">Toplam İkame Tutarı</span>
+                <div class="modal-value-box" style="color:#16a34a; font-weight:700; font-size:1.1rem;">${fToplam}</div>
+            </div>
+        </div>
+    `;
+    
+    gridContainer.appendChild(tutarBox);
+};
+
+// Klavyeden ESC ile modalları kapatma mantığı
+document.addEventListener('keydown', (e) => {
+    if (e.key === "Escape") {
+        const activeModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
+        activeModals.forEach(modal => {
+            modal.classList.add('hidden');
+        });
+    }
 });

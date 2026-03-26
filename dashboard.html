@@ -9,7 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./dashboard.css?v=18">
+    <link rel="stylesheet" href="./dashboard.css?v=22">
+    <link rel="stylesheet" href="./operasyon.css?v=22">
     <!-- SheetJS for Excel formatting, required for xlsx export -->
     <!-- SheetJS for Excel formatting, required for xlsx export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -43,117 +44,180 @@
 </head>
 
 <body>
-    <div class="dashboard-layout">
-        <!-- Sidebar / Header Area -->
-        <header class="dashboard-header">
-            <div class="header-left">
-                <img src="./Logo.png" alt="CrossLink Logo" class="header-logo">
+    <div class="op-layout">
+        <!-- Sidebar -->
+        <aside class="op-sidebar glass-card">
+            <div class="op-sidebar-header">
+                <img src="./Logo.png" alt="CrossLink Logo" class="op-logo">
             </div>
-            <div class="header-center" style="position: absolute; left: 50%; transform: translateX(-50%);">
-                <h1 class="header-title" style="color: var(--primary-color); font-weight: 700; margin: 0;">CrossLink
-                </h1>
-            </div>
-            <div class="header-right" style="display:flex; align-items:center; gap:20px;">
-                <div class="supplier-info">
-                    <span class="supplier-label">TEDARİKÇİ FİRMA:</span>
-                    <span id="supplierNameDisplay" class="supplier-name">Yükleniyor...</span>
+            
+            <nav class="op-nav">
+                <a href="#" class="op-nav-item active" id="menu-home">
+                    <span class="op-icon">🏠</span>
+                    <span>Ana Sayfa</span>
+                </a>
+                
+                <div class="op-nav-accordion">
+                    <div class="op-nav-item op-accordion-header" id="menu-ikame">
+                        <span class="op-icon">🚗</span>
+                        <span>Hizmetlerim</span>
+                        <span class="op-accordion-arrow">▼</span>
+                    </div>
+                    <div class="op-accordion-content hidden" id="submenu-ikame">
+                        <a href="#" class="op-sub-item" id="menu-teslimati-beklenen" style="display:flex; align-items:center;"><span class="op-sub-icon" style="margin-right:6px">🚦</span> Teslimatı Beklenen Hizmetler <span id="badge-teslimati" style="background:#F59E0B; color:#fff; border-radius:12px; min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; margin-left:auto; padding:0 6px;" class="hidden">0</span></a>
+                        <a href="#" class="op-sub-item" id="menu-kullanimi-devam-eden" style="display:flex; align-items:center;"><span class="op-sub-icon" style="margin-right:6px">🧑‍✈️</span> Kullanımı Devam Eden Hizmetler <span id="badge-devam" style="background:#3B82F6; color:#fff; border-radius:12px; min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; margin-left:auto; padding:0 6px;" class="hidden">0</span></a>
+                        <a href="#" class="op-sub-item" id="menu-kullanimi-biten" style="display:flex; align-items:center;"><span class="op-sub-icon" style="margin-right:6px">🤝</span> Kullanımı Biten Hizmetler <span id="badge-biten" style="background:#10B981; color:#fff; border-radius:12px; min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; margin-left:auto; padding:0 6px;" class="hidden">0</span></a>
+                    </div>
                 </div>
-                <!-- Action Buttons Container -->
-                <div style="display:flex; align-items:center; gap:8px;">
+                <a href="#" class="op-nav-item" id="menu-raporlama">
+                    <span class="op-icon">📊</span>
+                    <span>Raporlama</span>
+                </a>
+            </nav>
+
+            <div class="op-profile-card">
+                <button id="logoutBtn" class="op-logout-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    Çıkış Yap
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="op-main">
+            <header class="op-header glass-card">
+                <div class="op-header-left">
+                    <h1 style="color: var(--primary-color)">Hoşgeldin <span id="supplierNameDisplay" style="color:var(--text-dark);">Tedarikçi</span></h1>
+                </div>
+                <div class="op-header-right" style="display:flex; align-items:center; gap:20px;">
                     <button class="btn-pdf" id="btnSavePdf" title="PDF olarak indir"
                         style="background: var(--primary-color); color: white; border: none; border-radius: 6px; padding: 7px 16px; cursor: pointer; font-size: 0.85rem; font-family: 'Inter', sans-serif; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
                         📄 PDF Olarak Kaydet
                     </button>
-                    <button id="logoutBtn" class="action-btn logout-btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        Çıkış
-                    </button>
                 </div>
-            </div>
-        </header>
-        <main class="dashboard-main">
-            <!-- Filters Section -->
-            <section class="filters-section">
-                <div class="filters-header">
-                    <h2>Filtreler</h2>
-                    <button id="exportCsvBtn" class="action-btn primary-btn export-btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Tablo Olarak Al
-                    </button>
+            </header>
+            
+            <div class="op-content" id="mainContent">
+                <!-- Home Section -->
+                <div id="home-section" class="glass-card section-container" style="padding: 32px; text-align: center; margin-top: 24px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                    <h2 style="color: var(--text-dark); margin-bottom: 12px; font-size: 1.5rem;">Tedarikçi Sistemine Giriş Yaptınız.</h2>
+                    <p style="color: var(--text-muted); line-height: 1.6;">Sol taraftaki menüyü kullanarak hizmet tablosu süreçlerinizi takip edebilir (Teslimat, İade vb.) veya raporlarınızı hazırlayabilirsiniz.</p>
                 </div>
 
-                <div class="filters-grid">
-                    <div class="filter-group">
-                        <label for="filterHizmetNo">Hizmet No</label>
-                        <input type="text" id="filterHizmetNo" placeholder="Örn: TC260...">
+                <!-- 1. Teslimatı Beklenen Hizmetler -->
+                <div id="teslimati-beklenen-section" class="section-container hidden">
+                    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h2 style="color: var(--text-dark); font-size: 1.25rem;">Teslimatı Beklenen Hizmetler</h2>
                     </div>
-                    <div class="filter-group">
-                        <label for="filterDosyaNo">Dosya No</label>
-                        <input type="text" id="filterDosyaNo" placeholder="Örn: TS260...">
+                    <div class="filters-section glass-card" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 16px;">
+                        <div class="filter-group"><label>Hizmet No</label><input type="text" id="filter1-hizmet" placeholder="Hizmet No..." class="filter-input"></div>
+                        <div class="filter-group"><label>Dosya No</label><input type="text" id="filter1-dosya" placeholder="Dosya No..." class="filter-input"></div>
+                        <div class="filter-group"><label>Poliçe No</label><input type="text" id="filter1-police" placeholder="Poliçe No..." class="filter-input"></div>
+                        <div class="filter-group"><label>İsim</label><input type="text" id="filter1-isim" placeholder="İsim..." class="filter-input"></div>
+                        <div class="filter-group"><label>Soyisim</label><input type="text" id="filter1-soyisim" placeholder="Soyisim..." class="filter-input"></div>
+                        <div class="filter-group"><label>Müşteri</label><select id="filter1-musteri" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>İl</label><select id="filter1-il" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>Teminat</label><select id="filter1-teminat" class="filter-input"><option value="">Tümü</option></select></div>
                     </div>
-                    <div class="filter-group">
-                        <label for="filterDosyaTarihi">Açılış Tarihi (Ay)</label>
-                        <select id="filterDosyaTarihi">
-                            <option value="">Tüm Aylar</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterYil">Açılış Tarihi (Yıl)</label>
-                        <select id="filterYil">
-                            <option value="">Tüm Yıllar</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterMusteri">Müşteri</label>
-                        <select id="filterMusteri">
-                            <option value="">Tümü</option>
-                            <!-- Dynamically populated -->
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterIsim">İsim</label>
-                        <input type="text" id="filterIsim" placeholder="İsim ile ara...">
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterSoyisim">Soyisim</label>
-                        <input type="text" id="filterSoyisim" placeholder="Soyisim ile ara...">
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterIl">İl</label>
-                        <select id="filterIl">
-                            <option value="">Tüm İller</option>
-                            <!-- Dynamically populated -->
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filterDurum">Teslimat Durumu</label>
-                        <select id="filterDurum">
-                            <option value="">Tümü</option>
-                            <option value="Teslim Edildi">Teslim Edildi</option>
-                            <option value="Teslim Edilmedi">Teslim Edilmedi</option>
-                        </select>
-                    </div>
-                    <div class="filter-group" style="display:flex; flex-direction:column; justify-content:flex-end;">
-                        <label style="visibility: hidden; margin-bottom: 5px;">Sıfırla</label>
-                        <button id="btnResetFilters"
-                            style="background: #f1f5f9; color: var(--text-dark); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600; width: 100%; transition: all 0.2s;">
-                            🔄 Filtreleri Sıfırla
-                        </button>
+                    <div class="op-table-container glass-card" style="overflow-x: auto;">
+                        <table class="data-table" id="table1">
+                            <thead>
+                                <tr>
+                                    <th data-sort="sla" class="sortable-th">SLA SÜRE <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="hizmet" class="sortable-th">HİZMET NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="dosya" class="sortable-th">DOSYA NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="musteri" class="sortable-th">MÜŞTERİ <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="police" class="sortable-th">POLİÇE NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="isim" class="sortable-th">SİGORTALI İSİM <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="soyisim" class="sortable-th">SİGORTALI SOYİSİM <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="il" class="sortable-th">İL <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="teminat" class="sortable-th">TEMİNAT <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="segment" class="sortable-th">ARAÇ SEGMENTİ <span class="sort-icon">⇅</span></th>
+                                    <th class="actions-th">İŞLEMLER</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody1"></tbody>
+                        </table>
                     </div>
                 </div>
-            </section>
 
-            <!-- Data Table & Statistics Wrapper -->
+                <!-- 2. Kullanımı Devam Eden Hizmetler -->
+                <div id="kullanimi-devam-eden-section" class="section-container hidden">
+                    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h2 style="color: var(--text-dark); font-size: 1.25rem;">Kullanımı Devam Eden Hizmetler</h2>
+                    </div>
+                    <div class="filters-section glass-card" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 16px;">
+                        <div class="filter-group"><label>Hizmet No</label><input type="text" id="filter2-hizmet" placeholder="Hizmet No..." class="filter-input"></div>
+                        <div class="filter-group"><label>Dosya No</label><input type="text" id="filter2-dosya" placeholder="Dosya No..." class="filter-input"></div>
+                        <div class="filter-group"><label>Poliçe No</label><input type="text" id="filter2-police" placeholder="Poliçe No..." class="filter-input"></div>
+                        <div class="filter-group"><label>İsim</label><input type="text" id="filter2-isim" placeholder="İsim..." class="filter-input"></div>
+                        <div class="filter-group"><label>Soyisim</label><input type="text" id="filter2-soyisim" placeholder="Soyisim..." class="filter-input"></div>
+                        <div class="filter-group"><label>Müşteri</label><select id="filter2-musteri" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>İl</label><select id="filter2-il" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>Teminat</label><select id="filter2-teminat" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>Araç Segmenti</label><select id="filter2-segment" class="filter-input"><option value="">Tümü</option></select></div>
+                    </div>
+                    <div class="op-table-container glass-card" style="overflow-x: auto;">
+                        <table class="data-table" id="table2">
+                            <thead>
+                                <tr>
+                                    <th data-sort="hizmet" class="sortable-th">HİZMET NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="dosya" class="sortable-th">DOSYA NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="musteri" class="sortable-th">MÜŞTERİ <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="aracteslim" class="sortable-th">ARAÇ TESLİM TARİHİ <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="acikgun" class="sortable-th">AÇIK KULLANIM GÜNÜ <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="teminat" class="sortable-th">TEMİNAT <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="segment" class="sortable-th">SEGMENT <span class="sort-icon">⇅</span></th>
+                                    <th class="actions-th">İŞLEMLER</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody2"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. Kullanımı Biten Hizmetler -->
+                <div id="kullanimi-biten-section" class="section-container hidden">
+                    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h2 style="color: var(--text-dark); font-size: 1.25rem;">Kullanımı Biten Hizmetler</h2>
+                    </div>
+                    <div class="filters-section glass-card" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 16px;">
+                        <div class="filter-group"><label>Hizmet No</label><input type="text" id="filter3-hizmet" placeholder="Hizmet No..." class="filter-input"></div>
+                        <div class="filter-group"><label>Dosya No</label><input type="text" id="filter3-dosya" placeholder="Dosya No..." class="filter-input"></div>
+                        <div class="filter-group"><label>Poliçe No</label><input type="text" id="filter3-police" placeholder="Poliçe No..." class="filter-input"></div>
+                        <div class="filter-group"><label>İsim</label><input type="text" id="filter3-isim" placeholder="İsim..." class="filter-input"></div>
+                        <div class="filter-group"><label>Soyisim</label><input type="text" id="filter3-soyisim" placeholder="Soyisim..." class="filter-input"></div>
+                        <div class="filter-group"><label>Müşteri</label><select id="filter3-musteri" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>İl</label><select id="filter3-il" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>Teminat</label><select id="filter3-teminat" class="filter-input"><option value="">Tümü</option></select></div>
+                        <div class="filter-group"><label>Araç Segmenti</label><select id="filter3-segment" class="filter-input"><option value="">Tümü</option></select></div>
+                    </div>
+                    <div class="op-table-container glass-card" style="overflow-x: auto;">
+                        <table class="data-table" id="table3">
+                            <thead>
+                                <tr>
+                                    <th data-sort="hizmet" class="sortable-th">HİZMET NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="dosya" class="sortable-th">DOSYA NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="acilis" class="sortable-th">DOSYA AÇILIŞ TARİHİ <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="musteri" class="sortable-th">MÜŞTERİ <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="il" class="sortable-th">İL <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="teminat" class="sortable-th">TEMİNAT <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="segment" class="sortable-th">SEGMENT <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="acikgun" class="sortable-th">GÜN <span class="sort-icon">⇅</span></th>
+                                    <th class="actions-th">İŞLEMLER</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody3"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Raporlama Section -->
+                <div id="raporlama-section" class="section-container hidden">
+                    <div class="header-actions" style="margin-bottom: 16px;">
+                        <h2 style="color: var(--text-dark); font-size: 1.25rem;">Raporlama Tabloları ve Özet Grafik Göstergeleri</h2>
+                    </div>
+                    <!-- Data Table & Statistics Wrapper -->
             <div class="content-wrapper" style="display: flex; gap: 20px; width: 100%; box-sizing: border-box;">
 
                 <!-- Left: Data Table Section -->
@@ -362,11 +426,109 @@
                     </div>
 
                 </section>
+                </div> <!-- End Raporlama Section -->
+
             </div>
         </main>
     </div>
 
-    <!-- Loading overlay removed to prevent double loading screen -->
-</body>
+    <!-- Supplier İncele Modal (Operasyon gibi Popup mantığı) -->
+    <div id="supplierInceleModal" class="op-modal hidden">
+        <div class="op-modal-content" style="max-width:900px; height:85vh; padding:0; display:flex; flex-direction:column; overflow:hidden;">
+            <!-- Header -->
+            <div class="op-modal-header" style="padding: 20px 24px; border-bottom: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; background: #fff; position: sticky; top:0; z-index:10;">
+                <div>
+                   <h2 id="supModHizmetNo" style="font-size: 1.25rem; font-weight: 700; color: #111827; margin:0;">Hizmet No: -</h2>
+                   <h3 id="supModDosyaNo" style="font-size: 1rem; font-weight: 500; color: #6B7280; margin: 4px 0 0 0;">Dosya No: -</h3>
+                </div>
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <span id="supModBadge" class="status-badge status-open" style="padding:6px 12px; font-size:0.85rem;">Durum</span>
+                    <button class="op-close-modal" id="closeSupplierModal" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#9CA3AF;">&times;</button>
+                </div>
+            </div>
 
+            <!-- Body Area Scrollable -->
+            <div class="op-modal-body" style="padding: 24px; overflow-y:auto; flex:1; background:#F9FAFB;">
+                
+                <!-- Müşteri ve Araç Bilgileri Grid -->
+                <div class="atama-info-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                    <div class="modal-field"><span class="modal-label">İsim Soyisim</span><div class="modal-value-box" id="mSupIsim" style="background:#fff; border:1px solid #D1D5DB; border-radius:6px; padding:10px;">-</div></div>
+                    <div class="modal-field"><span class="modal-label">Telefon</span><div class="modal-value-box" id="mSupTelefon" style="background:#fff; border:1px solid #D1D5DB; border-radius:6px; padding:10px;">-</div></div>
+                    <div class="modal-field"><span class="modal-label">Teminat</span><div class="modal-value-box" id="mSupTeminat" style="background:#fff; border:1px solid #D1D5DB; border-radius:6px; padding:10px;">-</div></div>
+                    <div class="modal-field"><span class="modal-label">Talep Edilen Segment</span><div class="modal-value-box" id="mSupSeg" style="background:#fff; border:1px solid #D1D5DB; border-radius:6px; padding:10px;">-</div></div>
+                </div>
+
+                <!-- Araç Bilgileri Giriş Alanı -->
+                <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:20px; margin-bottom:24px;">
+                    <h3 style="font-size:1.1rem; color:#374151; margin-bottom:16px; border-bottom:1px solid #E5E7EB; padding-bottom:8px;">Araç Bilgileri (Tedarikçi Girişi)</h3>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <div class="form-group">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">Plaka</label>
+                            <input type="text" id="supInputPlaka" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" placeholder="Örn: 34ABC12">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">Marka / Model</label>
+                            <input type="text" id="supInputMarka" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" placeholder="Örn: Renault Clio">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">Segment</label>
+                            <input type="text" id="supInputSegment" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" placeholder="Örn: B">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">Araç Yılı / KM</label>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" id="supInputYil" style="width:50%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" placeholder="Yıl">
+                                <input type="text" id="supInputKm" style="width:50%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" placeholder="KM">
+                            </div>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">Drop Kilometre <span style="font-weight:400; color:#6B7280;">(Opsiyonel, Teslimat sonrası aktif olur)</span></label>
+                            <input type="text" id="supInputDropKm" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" placeholder="Örn: 10500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarihler -->
+                <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:20px; margin-bottom:24px;">
+                    <h3 style="font-size:1.1rem; color:#374151; margin-bottom:16px; border-bottom:1px solid #E5E7EB; padding-bottom:8px;">Süreç Tarihleri</h3>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <div class="form-group">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">Araç Teslimat Tarihi</label>
+                            <input type="datetime-local" id="supInputTeslimatTarihi" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size:0.85rem; font-weight:600; color:#4B5563; display:block; margin-bottom:6px;">İade Tarihi</label>
+                            <input type="datetime-local" id="supInputIadeTarihi" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:6px; outline:none;" disabled>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Operasyon Notları (Read Only for Supplier) -->
+                <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:16px; margin-bottom:24px;">
+                    <h3 style="font-size:1rem; color:#0369a1; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        Operasyon Logları & Notları
+                    </h3>
+                    <ul id="supLogList" style="list-style:none; padding:10px; margin:0; font-size:0.9rem; max-height:200px; overflow-y:auto; background:#fff; border:1px solid #e0f2fe; border-radius:6px;">
+                        <li style="color:#7dd3fc;">Yükleniyor...</li>
+                    </ul>
+                </div>
+
+                <!-- Aksiyonlar -->
+                <div style="display:flex; justify-content:center; gap:16px; margin-top:24px; padding-bottom:24px;">
+                    <button id="btnSupTeslimat" style="padding:12px 32px; font-weight:600; color:#fff; background-color:#10B981; border:none; border-radius:50px; cursor:pointer; font-size:1.1rem; box-shadow:0 4px 12px rgba(16,185,129,0.2); transition:all 0.2s;">
+                        Teslimat Sürecini Başlat
+                    </button>
+                    <button id="btnSupIade" class="hidden" style="padding:12px 32px; font-weight:600; color:#fff; background-color:#F59E0B; border:none; border-radius:50px; cursor:pointer; font-size:1.1rem; box-shadow:0 4px 12px rgba(245,158,11,0.2); transition:all 0.2s;">
+                        İade Sürecini Başlat
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+</body>
 </html>

@@ -71,7 +71,7 @@
                                 style="font-size: 1.1rem; font-weight: 700; color: var(--primary-color);">Yükleniyor...</span>
                         </div>
                     </div>
-                    <div>
+                    <div style="display:none;">
                         <span id="badgeStatus" class="status-badge"></span>
                     </div>
                 </div>
@@ -155,6 +155,16 @@
                                 <div id="displayYil" class="info-value readonly-only hidden">-</div>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Drop Kilometre</label>
+                            <input type="text" id="inputDropKm" class="form-control" placeholder="10.500">
+                        </div>
+                    </div>
+                    <!-- Araç Bilgilerini Kaydet Butonu -->
+                    <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+                        <button id="btnSaveVehicleInfo" class="btn detail-action-btn action-btn" style="padding:10px 24px; font-size:0.9rem;">
+                            💾 Araç Bilgilerini Kaydet
+                        </button>
                     </div>
                 </section>
 

@@ -278,6 +278,7 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
     const inpPlaka = document.getElementById("inputPlaka");
     const inpSegment = document.getElementById("inputSegment");
     const inpKm = document.getElementById("inputKm");
+    const inpDropKm = document.getElementById("inputDropKm");
 
     // Selects / Displays
     const inputMarka = document.getElementById("inputMarka");
@@ -321,6 +322,8 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
 
         inpPlaka.readOnly = true;
         inpKm.readOnly = true;
+        inpDropKm.readOnly = true;
+        inpDropKm.disabled = true;
         inpTeslimat.readOnly = true;
         inpIade.readOnly = true;
         hakedisGunu.readOnly = true;
@@ -334,6 +337,7 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         dispModel.textContent = localStorage.getItem("crosslink_model_" + file['Dosya No']) || file['Model'] || "-";
         inpSegment.value = localStorage.getItem("crosslink_segment_" + file['Dosya No']) || file['İkame Araç Segmenti'] || file['Segment'] || "-";
         inpKm.value = localStorage.getItem("crosslink_km_" + file['Dosya No']) || file['Kilometre'] || "-";
+        inpDropKm.value = localStorage.getItem("crosslink_drop_km_" + file['Dosya No']) || file['Drop Kilometre'] || "-";
         dispYil.textContent = localStorage.getItem("crosslink_yil_" + file['Dosya No']) || file['Araç Yılı'] || file['Model Yılı'] || "-";
 
         inpTeslimat.value = file['Teslimat Tarihi'] || localStorage.getItem("crosslink_teslimat_date_" + file['Dosya No']) || "-";
@@ -377,6 +381,13 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         inpTeslimat.value = localStorage.getItem("crosslink_teslimat_date_" + file['Dosya No']) || file['Teslimat Tarihi'] || "";
         inpIade.value = file['İade Tarihi'] || "";
 
+        // AUTO-SAVE DRAFTS ON TYPING (Prevents data loss on F5/Exit)
+        inpPlaka.addEventListener("input", (e) => localStorage.setItem("crosslink_plaka_" + file['Dosya No'], e.target.value.trim()));
+        inpKm.addEventListener("input", (e) => localStorage.setItem("crosslink_km_" + file['Dosya No'], e.target.value.trim()));
+        inpDropKm.value = localStorage.getItem("crosslink_drop_km_" + file['Dosya No']) || file['Drop Kilometre'] || "";
+        inpDropKm.disabled = false; // Tedarikçi her zaman drop km girebilir
+        inpDropKm.addEventListener("input", (e) => localStorage.setItem("crosslink_drop_km_" + file['Dosya No'], e.target.value.trim()));
+
         let hakedisVal = localStorage.getItem("crosslink_hakedis_" + file['Dosya No']) || file['Hakediş Tarihi'];
         if (hakedisVal) {
             const parts = hakedisVal.split(' ');
@@ -399,7 +410,20 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
             inpPlaka.readOnly = true;
             inpSegment.readOnly = true;
             inpKm.readOnly = true;
+            inpDropKm.disabled = false; // Teslimat sonrası drop km girilebilir
+            // Drop KM her input'ta otomatik kaydet
+            inpDropKm.addEventListener("input", (e) => {
+                const val = e.target.value.replace(/[^0-9]/g, "");
+                localStorage.setItem("crosslink_drop_km_" + file['Dosya No'], val);
+            });
             document.getElementById("btnStartTeslimat").disabled = true;
+
+            // Kaydet butonu bu aşamada da görünsün (sadece drop km için)
+            const btnSV = document.getElementById('btnSaveVehicleInfo');
+            if (btnSV) {
+                btnSV.style.display = 'block';
+                btnSV.textContent = '💾 Drop KM Kaydet';
+            }
 
             // Enable Iade Button because Teslimat is marked
             document.getElementById("btnStartIade").disabled = false;
@@ -418,6 +442,7 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         for (let y = 2026; y >= 2011; y--) {
             inputYil.innerHTML += `<option value="${y}">${y}</option>`;
         }
+        inputYil.addEventListener('change', (e) => localStorage.setItem("crosslink_yil_" + file['Dosya No'], e.target.value));
         if (file['Araç Yılı'] || file['Model Yılı']) {
             inputYil.value = file['Araç Yılı'] || file['Model Yılı'];
         }
@@ -431,8 +456,11 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         // Marka Change Listener
         inputMarka.addEventListener('change', (e) => {
             const selectedMarka = e.target.value;
+            localStorage.setItem("crosslink_marka_" + file['Dosya No'], selectedMarka);
             inputModel.innerHTML = '<option value="">Model Seçiniz...</option>';
             inpSegment.value = "";
+            localStorage.removeItem("crosslink_model_" + file['Dosya No']);
+            localStorage.removeItem("crosslink_segment_" + file['Dosya No']);
 
             if (selectedMarka && carData[selectedMarka]) {
                 inputModel.disabled = false;
@@ -448,9 +476,13 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         inputModel.addEventListener('change', (e) => {
             const selectedOption = e.target.options[e.target.selectedIndex];
             if (selectedOption && selectedOption.value) {
+                localStorage.setItem("crosslink_model_" + file['Dosya No'], selectedOption.value);
                 inpSegment.value = selectedOption.getAttribute('data-seg') || "";
+                localStorage.setItem("crosslink_segment_" + file['Dosya No'], inpSegment.value);
             } else {
+                localStorage.removeItem("crosslink_model_" + file['Dosya No']);
                 inpSegment.value = "";
+                localStorage.removeItem("crosslink_segment_" + file['Dosya No']);
             }
         });
 
@@ -485,6 +517,53 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         hakedisGunu.addEventListener('change', saveHakedisFn);
         hakedisSaat.addEventListener('change', saveHakedisFn);
         hakedisDakika.addEventListener('change', saveHakedisFn);
+
+        // === ARAÇ BİLGİLERİNİ KAYDET BUTONU ===
+        const btnSaveVehicle = document.getElementById('btnSaveVehicleInfo');
+        if (btnSaveVehicle) {
+            btnSaveVehicle.addEventListener('click', () => {
+                const dn = file['Dosya No'];
+                const plaka = inpPlaka.value.trim();
+                const marka = inputMarka.value.trim();
+                const model = inputModel.value.trim();
+                const yil = inputYil.value.trim();
+                const segment = inpSegment.value.trim();
+                const km = inpKm.value.trim();
+                const dropKm = inpDropKm.value.trim();
+
+                const missing = [];
+                if (!plaka) missing.push('Plaka');
+                if (!marka || marka === '' || marka.includes('Seçiniz')) missing.push('Marka');
+                if (!model || model === '' || model.includes('Seçiniz')) missing.push('Model');
+                if (!yil || yil.includes('Seçiniz')) missing.push('Araç Yılı');
+                if (!km) missing.push('Kilometre');
+
+                if (missing.length > 0) {
+                    alert('Lütfen şu alanları doldurunuz: ' + missing.join(', '));
+                    return;
+                }
+
+                if (plaka) localStorage.setItem('crosslink_plaka_' + dn, plaka);
+                if (marka && !marka.includes('Seçiniz')) localStorage.setItem('crosslink_marka_' + dn, marka);
+                if (model && !model.includes('Seçiniz')) localStorage.setItem('crosslink_model_' + dn, model);
+                if (yil && !yil.includes('Seçiniz')) localStorage.setItem('crosslink_yil_' + dn, yil);
+                if (segment) localStorage.setItem('crosslink_segment_' + dn, segment);
+                if (km) localStorage.setItem('crosslink_km_' + dn, km.replace(/[^0-9]/g, ''));
+                if (dropKm) localStorage.setItem('crosslink_drop_km_' + dn, dropKm.replace(/[^0-9]/g, ''));
+
+                // Log
+                logActivity(file, `💾 Araç bilgileri güncellendi — Plaka: ${plaka}, Marka: ${marka}, Model: ${model}, Yıl: ${yil}, KM: ${km}`);
+
+                btnSaveVehicle.textContent = '✅ Kaydedildi!';
+                btnSaveVehicle.style.background = '#16a34a';
+                btnSaveVehicle.style.color = '#fff';
+                setTimeout(() => {
+                    btnSaveVehicle.textContent = '💾 Araç Bilgilerini Kaydet';
+                    btnSaveVehicle.style.background = '';
+                    btnSaveVehicle.style.color = '';
+                }, 2500);
+            });
+        }
     }
 }
 
@@ -848,8 +927,24 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
                     document.getElementById("displayYil").textContent = mYil;
                 }
 
+
+                // Get and save all final field values BEFORE logging
+                const finalPlaka = document.getElementById("inputPlaka").value.trim();
+                const finalSegment = document.getElementById("inputSegment").value.trim();
+                const finalKm = document.getElementById("inputKm").value.replace(/[^0-9]/g, "");
+                const finalMarka = document.getElementById("displayMarka").textContent || document.getElementById("inputMarka").value.trim();
+                const finalModel = document.getElementById("displayModel").textContent || document.getElementById("inputModel").value.trim();
+                const finalYil = document.getElementById("displayYil").textContent || document.getElementById("inputYil").value.trim();
+
+                if (finalPlaka) localStorage.setItem("crosslink_plaka_" + dosyaNo, finalPlaka);
+                if (finalSegment) localStorage.setItem("crosslink_segment_" + dosyaNo, finalSegment);
+                if (finalKm) localStorage.setItem("crosslink_km_" + dosyaNo, finalKm);
+                if (finalMarka && !finalMarka.includes("-")) localStorage.setItem("crosslink_marka_" + dosyaNo, finalMarka);
+                if (finalModel && !finalModel.includes("-")) localStorage.setItem("crosslink_model_" + dosyaNo, finalModel);
+                if (finalYil && !finalYil.includes("-")) localStorage.setItem("crosslink_yil_" + dosyaNo, finalYil);
+
                 alert("Dosya teslimat süreci başarıyla tamamlanmıştır.\n(Demo: Araç bilgileri artık değiştirilemez.)");
-                logActivity(file, `✅ Teslimat Süreci tamamlandı. Teslimat Tarihi: ${currentOtpDate}`);
+                logActivity(file, `🚗 İkame araç tedarikçi tarafından teslim edildi. Plaka: ${finalPlaka}, Segment: ${finalSegment}, Teslimat Tarihi: ${currentOtpDate}`);
                 if (btnStartTeslimat) btnStartTeslimat.disabled = true;
 
                 // Lock fields immediately
@@ -860,13 +955,7 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
                 document.getElementById("inputPlaka").readOnly = true;
                 document.getElementById("inputSegment").readOnly = true;
                 document.getElementById("inputKm").readOnly = true;
-
-                const finalPlaka = document.getElementById("inputPlaka").value.trim();
-                const finalSegment = document.getElementById("inputSegment").value.trim();
-                const finalKm = document.getElementById("inputKm").value.trim();
-                if (finalPlaka) localStorage.setItem("crosslink_plaka_" + dosyaNo, finalPlaka);
-                if (finalSegment) localStorage.setItem("crosslink_segment_" + dosyaNo, finalSegment);
-                if (finalKm) localStorage.setItem("crosslink_km_" + dosyaNo, finalKm);
+                if(document.getElementById("inputDropKm")) document.getElementById("inputDropKm").disabled = false;
 
                 // Do NOT lock Hakedis yet, keep it open until Iade!
                 if (btnStartIade) btnStartIade.disabled = false;

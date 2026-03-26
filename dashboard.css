@@ -329,6 +329,7 @@ body {
 
 .data-table tbody tr {
     transition: background-color 0.15s;
+    background-color: #FFFFFF;
 }
 
 .data-table tbody tr:hover {
