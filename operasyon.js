@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+﻿document.addEventListener("DOMContentLoaded", () => {
     // 1. Session Protection
     const sessionData = sessionStorage.getItem("crosslink_operasyon");
     if (!sessionData) {
@@ -1127,6 +1127,82 @@ document.addEventListener("DOMContentLoaded", () => {
                 const dispUzDosya = formatUzaklik(uzaklikDosya);
                 const dispUzGun = formatUzaklik(uzaklikGun);
                 const dispUzTutar = formatUzaklik(uzaklikTutar);
+                // --- CANLI TALEP DURUMU ---
+                // Teslimatı beklenen + kullanımı devam eden arasından
+                // aynı il ve aynı segment eşleşenler
+                let canliTalepCount = 0;
+                const talepIl = (il || "").toLocaleLowerCase('tr-TR').trim();
+                const talepSeg = (isteneSegment || "").toLocaleLowerCase('tr-TR').trim();
+
+                // A) Teslimatı beklenen
+                deliveryData.forEach(dr => {
+                    const drIl = (dr['\u0130l'] || "").toLocaleLowerCase('tr-TR').trim();
+                    const drSeg = (dr['Talep Edilen Ara\u00e7 Segmenti'] || dr['Segment'] || "").toLocaleLowerCase('tr-TR').trim();
+                    if (drIl === talepIl && drSeg === talepSeg) canliTalepCount++;
+                });
+
+                // B) Kullanımı devam eden
+                const activeRentalsLoc = JSON.parse(localStorage.getItem('crosslink_active_rentals') || '{}');
+                Object.values(activeRentalsLoc).forEach(ar => {
+                    const fd = ar.fullData || {};
+                    const arIl = (fd['\u0130l'] || "").toLocaleLowerCase('tr-TR').trim();
+                    const arSeg = (fd['Talep Edilen Ara\u00e7 Segmenti'] || fd['Segment'] || "").toLocaleLowerCase('tr-TR').trim();
+                    if (arIl === talepIl && arSeg === talepSeg) canliTalepCount++;
+                });
+
+                // --- BA\u015eARI ORANI (24 Saatlik teslimat) ---
+                // Tamamlanan dosyalardan bu tedarik\u00e7inin atand\u0131ktan sonra
+                // sigortal\u0131 SMS onay\u0131yla 24 saat i\u00e7inde teslim edip etmedi\u011fini kontrol et
+                let basariBasarili = 0;
+                let basariBasarisiz = 0;
+
+                const assignmentsStore = JSON.parse(localStorage.getItem('crosslink_assignments') || '{}');
+                completedData.forEach(cr => {
+                    const crTedarik = normalizeForSearch(cr['Tedarik\u00e7i'] || '');
+                    if (!(crTedarik === suppNorm || crTedarik.includes(suppNorm) || suppNorm.includes(crTedarik))) return;
+                    
+                    const dosya = cr['Dosya No'];
+                    const assignEntry = assignmentsStore[dosya];
+                    if (!assignEntry || !assignEntry.assignedAt) return;
+
+                    // Atanma zaman\u0131
+                    const atanmaMs = new Date(assignEntry.assignedAt).getTime();
+                    if (isNaN(atanmaMs)) return;
+
+                    // Teslimat zaman\u0131: Logs i\u00e7inde "SMS\" veya "teslim" ge\u00e7en ilk log
+                    let teslimMs = null;
+                    const logs = assignEntry.logs || [];
+                    for (const log of logs) {
+                        const logText = (log.text || log.message || log || '').toLowerCase();
+                        const logTime = log.time || log.timestamp || log.tarih || null;
+                        if ((logText.includes('sms') || logText.includes('teslim') || logText.includes('onay')) && logTime) {
+                            const lt = new Date(logTime).getTime();
+                            if (!isNaN(lt)) { teslimMs = lt; break; }
+                        }
+                    }
+
+                    // Teslimat tarihi alanından da dene
+                    if (!teslimMs && cr['Teslimat Tarihi'] && cr['Teslimat Tarihi'] !== '-') {
+                        const tp = String(cr['Teslimat Tarihi']).split(' ');
+                        const dpArr = tp[0].split('.');
+                        if (dpArr.length === 3) {
+                            const tObj = new Date(dpArr[2], dpArr[1]-1, dpArr[0]);
+                            if (!isNaN(tObj.getTime())) teslimMs = tObj.getTime();
+                        }
+                    }
+
+                    if (!teslimMs) return;
+
+                    const diffHrs = (teslimMs - atanmaMs) / (1000 * 3600);
+                    if (diffHrs <= 24) basariBasarili++;
+                    else basariBasarisiz++;
+                });
+
+                const basariTotal = basariBasarili + basariBasarisiz;
+                const basariPct = basariTotal > 0 ? Math.round((basariBasarili / basariTotal) * 100) : null;
+                const basariPctStr = basariPct !== null ? basariPct + '%' : '-';
+                const basariBarColor = basariPct === null ? '#94a3b8' : (basariPct >= 75 ? '#16a34a' : (basariPct >= 50 ? '#d97706' : '#dc2626'));
+
                 // --- DYNAMIC PRICING ENGINE ---
                 let sysGunlukTutar = "Bilinmiyor";
                 let sysDoviz = "TL";
@@ -1221,6 +1297,24 @@ document.addEventListener("DOMContentLoaded", () => {
                                     <div><span style="font-size:0.7rem; color:#1e3a8a; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedefi Tamamlama (Gün)</span><strong style="color:${getPctColor(dispUzGun)}; font-size:0.95rem;">${dispUzGun}</strong></div>
                                     <div><span style="font-size:0.7rem; color:#1e3a8a; font-weight:600; line-height:1.2; display:block; margin-bottom:4px;">Hedefi Tamamlama (Tutar)</span><strong style="color:${getPctColor(dispUzTutar)}; font-size:0.95rem;">${dispUzTutar}</strong></div>
                                 </div>
+                                 
+                                 <!-- 6. Satir: Canli Talep + Basari Orani -->
+                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; border-top:2px solid #e0e7ff; padding-top:12px; margin-top:4px;">
+                                     <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px;">
+                                         <span style="font-size:0.7rem; color:#166534; font-weight:700; display:block; margin-bottom:4px;">Canli Talep Durumu (${il} - ${isteneSegment})</span>
+                                         <strong style="font-size:1.15rem; color:#15803d;">${canliTalepCount} Aktif Dosya</strong>
+                                     </div>
+                                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                                         <span style="font-size:0.7rem; color:#475569; font-weight:700; display:block; margin-bottom:6px;">Basari Orani (24 Saat Ici Teslim)</span>
+                                         <div style="display:flex; align-items:center; gap:10px;">
+                                             <div style="flex:1; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+                                                 <div style="height:100%; width:${basariPct !== null ? basariPct : 0}%; background:${basariBarColor}; border-radius:4px; transition:width 0.4s ease;"></div>
+                                             </div>
+                                             <strong style="font-size:0.95rem; color:${basariBarColor}; min-width:36px; text-align:right;">${basariPctStr}</strong>
+                                         </div>
+                                         <span style="font-size:0.7rem; color:#94a3b8; margin-top:4px; display:block;">${basariBasarili} Basarili / ${basariTotal} Toplam</span>
+                                     </div>
+                                 </div>
                                 
                             </div>
                         </div>
