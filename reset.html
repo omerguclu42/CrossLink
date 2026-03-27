@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistemi Sıfırla (CrossLink)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f3f4f6; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+        .icon { font-size: 48px; margin-bottom: 20px; }
+        h1 { color: #1f2937; margin-top: 0; }
+        p { color: #4b5563; margin-bottom: 30px; line-height: 1.5; }
+        button { background-color: #ef4444; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.3s; }
+        button:hover { background-color: #dc2828; }
+        #successMsg { display: none; color: #10b981; font-weight: bold; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="icon">🧹</div>
+    <h1>Test Verilerini Temizle</h1>
+    <p>Bu güne kadar yaptığınız atamalar, operasyon notları, tedarikçi logları ve teslimat işlemlerinin tümü tarayıcı hafızasından (sadece cihazınızdan) silinecektir.</p>
+    <button id="btnReset" onclick="clearData()">Tüm Test Verilerini Sil</button>
+    <div id="successMsg">Sistem başarıyla sıfırlandı! ✅ Artık bu sekmeyi kapatıp operasyon/tedarikçi sayfalarını yenileyebilirsiniz.</div>
+</div>
+
+<script>
+function clearData() {
+    let keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        let key = localStorage.key(i);
+        if (key && (key.startsWith("crosslink_") || key.startsWith("atama_"))) {
+            keysToRemove.push(key);
+        }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    document.getElementById("btnReset").style.display = "none";
+    document.getElementById("successMsg").style.display = "block";
+}
+</script>
+
+</body>
+</html>

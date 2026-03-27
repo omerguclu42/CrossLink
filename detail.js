@@ -187,6 +187,21 @@ async function renderDetail(file) {
     badge.textContent = file['Teslimat Durumu'];
     badge.className = "status-badge " + (isDelivered ? "status-delivered" : "status-pending");
 
+    // Operasyon Notu Check
+    const assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
+    if (assignments[dosyaNo] && assignments[dosyaNo].logs) {
+        const opNotes = assignments[dosyaNo].logs.filter(l => l.message && l.message.startsWith("Operasyon Notu:"));
+        if (opNotes.length > 0) {
+            const lastNote = opNotes[opNotes.length - 1];
+            const noteText = lastNote.message.replace("Operasyon Notu:", "").trim();
+            const alertBox = document.getElementById("operasyonNotAlert");
+            if (alertBox) {
+                alertBox.classList.remove("hidden");
+                document.getElementById("operasyonNotText").textContent = noteText;
+            }
+        }
+    }
+
     // 1. Müşteri Bilgileri
     document.getElementById("valIsim").textContent = file['İsim'] || "-";
     document.getElementById("valSoyisim").textContent = file['Soyisim'] || "-";
@@ -290,22 +305,7 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
 
     const inpTeslimat = document.getElementById("inputTeslimatTarihi");
     const inpIade = document.getElementById("inputIadeTarihi");
-    const hakedisGunu = document.getElementById("inputHakedisTarihiGunu");
-    const hakedisSaat = document.getElementById("inputHakedisSaat");
-    const hakedisDakika = document.getElementById("inputHakedisDakika");
-
-    // Populate Saat / Dakika
-    hakedisSaat.innerHTML = '<option value="">Saat</option>';
-    for (let i = 0; i < 24; i++) {
-        const val = i.toString().padStart(2, '0');
-        hakedisSaat.innerHTML += `<option value="${val}">${val}</option>`;
-    }
-
-    hakedisDakika.innerHTML = '<option value="">Dakika</option>';
-    for (let i = 0; i < 60; i++) {
-        const val = i.toString().padStart(2, '0');
-        hakedisDakika.innerHTML += `<option value="${val}">${val}</option>`;
-    }
+    const inputHakedis = document.getElementById("inputHakedisTarihi");
 
     if (isDelivered) {
         // READ-ONLY MODE (Teslim Edildi)
@@ -326,10 +326,6 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         inpDropKm.disabled = true;
         inpTeslimat.readOnly = true;
         inpIade.readOnly = true;
-        hakedisGunu.readOnly = true;
-        hakedisGunu.disabled = true;
-        hakedisSaat.disabled = true;
-        hakedisDakika.disabled = true;
 
         // Fill from Excel
         inpPlaka.value = localStorage.getItem("crosslink_plaka_" + file['Dosya No']) || file['Plaka'] || "-";
@@ -343,21 +339,9 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         inpTeslimat.value = file['Teslimat Tarihi'] || localStorage.getItem("crosslink_teslimat_date_" + file['Dosya No']) || "-";
         inpIade.value = file['İade Tarihi'] || localStorage.getItem("crosslink_iade_date_" + file['Dosya No']) || "-";
 
-        if (file['Hakediş Tarihi'] || localStorage.getItem("crosslink_hakedis_" + file['Dosya No'])) {
-            const val = file['Hakediş Tarihi'] || localStorage.getItem("crosslink_hakedis_" + file['Dosya No']);
-            if (val) {
-                // assume 'YYYY-MM-DD HH:MM' format if saved local, else string match
-                const parts = val.split(' ');
-                if (parts[0]) hakedisGunu.value = parts[0];
-                if (parts[1]) {
-                    const timeParts = parts[1].split(':');
-                    if (timeParts[0]) hakedisSaat.value = timeParts[0];
-                    if (timeParts[1]) hakedisDakika.value = timeParts[1];
-                }
-            }
-        } else {
-            document.getElementById("hakedisGroup").style.display = "none";
-        }
+        let opHakedisVal = localStorage.getItem("crosslink_hakedis_date_" + file['Dosya No']);
+        let finalHakedis = opHakedisVal || file['Hakediş Tarihi'] || localStorage.getItem("crosslink_hakedis_" + file['Dosya No']) || "-";
+        if (inputHakedis) inputHakedis.value = finalHakedis;
 
     } else {
         // EDITABLE MODE (Teslim Edilmedi)
@@ -369,11 +353,6 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         // Disable Iade Button by default until Teslimat is marked
         document.getElementById("btnStartIade").disabled = true;
 
-        // Disable Hakediş Button by default until Teslimat is marked
-        document.getElementById("inputHakedisTarihiGunu").disabled = true;
-        document.getElementById("inputHakedisSaat").disabled = true;
-        document.getElementById("inputHakedisDakika").disabled = true;
-
         // PRE-FILL FROM EXCEL
         inpPlaka.value = localStorage.getItem("crosslink_plaka_" + file['Dosya No']) || file['Plaka'] || "";
         inpSegment.value = localStorage.getItem("crosslink_segment_" + file['Dosya No']) || file['İkame Araç Segmenti'] || file['Segment'] || "";
@@ -382,22 +361,20 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
         inpIade.value = file['İade Tarihi'] || "";
 
         // AUTO-SAVE DRAFTS ON TYPING (Prevents data loss on F5/Exit)
-        inpPlaka.addEventListener("input", (e) => localStorage.setItem("crosslink_plaka_" + file['Dosya No'], e.target.value.trim()));
+        inpPlaka.addEventListener("input", (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            localStorage.setItem("crosslink_plaka_" + file['Dosya No'], e.target.value.trim());
+        });
         inpKm.addEventListener("input", (e) => localStorage.setItem("crosslink_km_" + file['Dosya No'], e.target.value.trim()));
         inpDropKm.value = localStorage.getItem("crosslink_drop_km_" + file['Dosya No']) || file['Drop Kilometre'] || "";
         inpDropKm.disabled = false; // Tedarikçi her zaman drop km girebilir
         inpDropKm.addEventListener("input", (e) => localStorage.setItem("crosslink_drop_km_" + file['Dosya No'], e.target.value.trim()));
 
-        let hakedisVal = localStorage.getItem("crosslink_hakedis_" + file['Dosya No']) || file['Hakediş Tarihi'];
-        if (hakedisVal) {
-            const parts = hakedisVal.split(' ');
-            if (parts[0]) hakedisGunu.value = parts[0];
-            if (parts[1]) {
-                const timeParts = parts[1].split(':');
-                if (timeParts[0]) hakedisSaat.value = timeParts[0];
-                if (timeParts[1]) hakedisDakika.value = timeParts[1];
-            }
-        }
+        // HAKEDIŞ TARİHİ LOGIC (OPERATIONS OVERRIDE COMPATIBLE)
+        let opHakedisVal = localStorage.getItem("crosslink_hakedis_date_" + file['Dosya No']);
+        let hakedisVal = opHakedisVal || localStorage.getItem("crosslink_hakedis_" + file['Dosya No']) || file['Hakediş Tarihi'] || "-";
+        
+        if (inputHakedis) inputHakedis.value = hakedisVal;
 
         // Apply Partial Lock if Teslimat is Maked
         if (isTeslimatMaked) {
@@ -420,11 +397,6 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
 
             // Enable Iade Button because Teslimat is marked
             document.getElementById("btnStartIade").disabled = false;
-            
-            // Enable Hakediş Fields because Teslimat is marked
-            document.getElementById("inputHakedisTarihiGunu").disabled = false;
-            document.getElementById("inputHakedisSaat").disabled = false;
-            document.getElementById("inputHakedisDakika").disabled = false;
         }
 
         // Fetch Car Models
@@ -497,19 +469,7 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
             }
         });
 
-        // Live update Hakedis
-        const saveHakedisFn = () => {
-            const dn = file['Dosya No'];
-            const hG = hakedisGunu.value;
-            const hS = hakedisSaat.value || "00";
-            const hD = hakedisDakika.value || "00";
-            if (hG) {
-                localStorage.setItem("crosslink_hakedis_" + dn, `${hG} ${hS}:${hD}`);
-            }
-        };
-        hakedisGunu.addEventListener('change', saveHakedisFn);
-        hakedisSaat.addEventListener('change', saveHakedisFn);
-        hakedisDakika.addEventListener('change', saveHakedisFn);
+
 
         // === ARAÇ BİLGİLERİNİ KAYDET BUTONU ===
         const btnSaveVehicle = document.getElementById('btnSaveVehicleInfo');
@@ -542,7 +502,9 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
                 if (yil && !yil.includes('Seçiniz')) localStorage.setItem('crosslink_yil_' + dn, yil);
                 if (segment) localStorage.setItem('crosslink_segment_' + dn, segment);
                 if (km) localStorage.setItem('crosslink_km_' + dn, km.replace(/[^0-9]/g, ''));
-                if (dropKm) localStorage.setItem('crosslink_drop_km_' + dn, dropKm.replace(/[^0-9]/g, ''));
+                
+                const cleanDropKm = (dropKm && dropKm.trim() !== '') ? dropKm.replace(/[^0-9]/g, '') : "0";
+                localStorage.setItem('crosslink_drop_km_' + dn, cleanDropKm);
 
                 // Log
                 logActivity(file, `💾 Araç bilgileri güncellendi — Plaka: ${plaka}, Marka: ${marka}, Model: ${model}, Yıl: ${yil}, KM: ${km}`);
@@ -807,11 +769,6 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
 
     if (btnStartIade) {
         btnStartIade.addEventListener("click", () => {
-            const hG = document.getElementById("inputHakedisTarihiGunu").value;
-            const hS = document.getElementById("inputHakedisSaat").value;
-            const hD = document.getElementById("inputHakedisDakika").value;
-            
-            // Hakediş Tarihi validation removed as requested by the user
             confirmIadeModal.classList.remove("hidden");
         });
     }
@@ -837,19 +794,8 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
             }
 
             const teslimatB = inputTeslimatTarihi.value || "-";
-            const hakedisGunu = document.getElementById("inputHakedisTarihiGunu").value || "-";
-            const hakedisSaat = document.getElementById("inputHakedisSaat").value || "00";
-            const hakedisDak = document.getElementById("inputHakedisDakika").value || "00";
-            let hakedisB = "-";
-
-            if (hakedisGunu !== "-") {
-                const hParts = hakedisGunu.split("-");
-                if (hParts.length === 3) {
-                    hakedisB = `${hParts[2]}.${hParts[1]}.${hParts[0]} ${hakedisSaat}:${hakedisDak}`;
-                } else {
-                    hakedisB = `${hakedisGunu} ${hakedisSaat}:${hakedisDak}`;
-                }
-            }
+            const hakedisInputTarget = document.getElementById("inputHakedisTarihi");
+            const hakedisB = hakedisInputTarget ? (hakedisInputTarget.value || "-") : "-";
 
             const smsText = `Sayın Sigortalı,\n\nTarafınıza teslim edilen ikame aracın iadesi için tedarikçi firmamız süreci başlatmak istemektedir.\nTeslimat Tarihi : ${teslimatB}\nİade Tarihi : ${formattedDate}\nHakediş Tarihi : ${hakedisB}\n\nİletilen bilgiler doğruysa tedarikçimize aşağıda ki onay kodunun iletilmesini rica ederiz.\nOnay Kodu : ${currentOtp}\nİyi günler dileriz.\nB002`;
 
@@ -892,19 +838,15 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
 
                 // Immediately save Drop KM so it persists across sessions
                 const dropKmAtConfirm = (document.getElementById("inputDropKm") || {}).value;
-                if (dropKmAtConfirm) {
-                    localStorage.setItem("crosslink_drop_km_" + dosyaNo, dropKmAtConfirm.replace(/[^0-9]/g, ""));
-                }
+                const cleanDrop = dropKmAtConfirm ? dropKmAtConfirm.replace(/[^0-9]/g, "") : "0";
+                localStorage.setItem("crosslink_drop_km_" + dosyaNo, cleanDrop);
 
 
                 // Enable Iade process dynamically
                 document.getElementById("btnStartIade").disabled = false;
                 document.getElementById("btnStartTeslimat").disabled = true;
 
-                // Unlock Hakediş Fields instantly in DOM since Teslimat is now confirmed
-                document.getElementById("inputHakedisTarihiGunu").disabled = false;
-                document.getElementById("inputHakedisSaat").disabled = false;
-                document.getElementById("inputHakedisDakika").disabled = false;
+
 
                 // Get the saved values from select boxes. Since the `value` attributes hold the exact strings, we can use `.value`
                 const mMarka = document.getElementById("inputMarka").value || "";
@@ -973,11 +915,22 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
                 const btnUpdateGroup = document.getElementById("btnUpdateGroup");
                 if (btnUpdateGroup) btnUpdateGroup.style.display = "none";
 
+                // Explicitly lock in the latest Drop KM value
+                const dKm = document.getElementById("inputDropKm");
+                if (dKm) {
+                    const finalDropKm = dKm.value.trim();
+                    const cleanDropKm = (finalDropKm && finalDropKm !== '') ? finalDropKm.replace(/[^0-9]/g, '') : "0";
+                    localStorage.setItem("crosslink_drop_km_" + dosyaNo, cleanDropKm);
+                    dKm.readOnly = true;
+                    dKm.disabled = true;
+                }
+
                 // Lock Hakedis
-                document.getElementById("inputHakedisTarihiGunu").readOnly = true;
-                document.getElementById("inputHakedisTarihiGunu").disabled = true;
-                document.getElementById("inputHakedisSaat").disabled = true;
-                document.getElementById("inputHakedisDakika").disabled = true;
+                const finalHakedisInput = document.getElementById("inputHakedisTarihi");
+                if (finalHakedisInput) {
+                    finalHakedisInput.readOnly = true;
+                    finalHakedisInput.disabled = true;
+                }
 
                 // Update badge
                 const badge = document.getElementById("badgeStatus");
@@ -1002,9 +955,18 @@ function logActivity(file, message) {
     let logs = [];
     try { logs = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { }
     const now = new Date();
-    const ts = now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR');
+    const ts = now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     logs.unshift({ ts, msg: message });
     localStorage.setItem(key, JSON.stringify(logs));
+
+    // Shadow to Operations Shared Timeline
+    try {
+        const opsKey = "crosslink_activity_logs_" + dn;
+        let opsLogs = JSON.parse(localStorage.getItem(opsKey) || "[]");
+        const supplierIdentity = sessionStorage.getItem('crosslink_supplier') || 'Tedarikçi';
+        opsLogs.unshift({ date: ts, user: supplierIdentity, msg: message });
+        localStorage.setItem(opsKey, JSON.stringify(opsLogs));
+    } catch(err) {}
     renderActivityLog(file);
 }
 

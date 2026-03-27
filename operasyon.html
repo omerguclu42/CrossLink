@@ -256,7 +256,8 @@
                                 <thead>
                                     <tr>
                                         <!-- Header labels with sort arrows will be injected by JS -->
-                                        <th data-sort="teslimat-tarih">Dosya Açılış Tarihi ↕</th>
+                                        <th data-sort="teslimat-tarih">Dosya Açılış Tarihi<br><span style="font-size:0.75rem; font-weight:400;">(Geçen Süre)</span></th>
+                                        <th data-sort="teslimat-atanma">Tedarikçiye Gönderim Tarihi<br><span style="font-size:0.75rem; font-weight:400;">(Geçen Süre)</span></th>
                                         <th data-sort="teslimat-tedarikci">Tedarikçi ↕</th>
                                         <th data-sort="teslimat-hizmet">Hizmet No ↕</th>
                                         <th data-sort="teslimat-dosya">Dosya No ↕</th>
@@ -316,10 +317,11 @@
                                         <!-- Header labels with sort arrows will be injected by JS -->
                                         <th data-sort="ongoing-tedarikci">Tedarikçi ↕ </th>
                                         <th data-sort="ongoing-hizmet">Hizmet No ↕ </th>
-                                        <th data-sort="ongoing-dosya">Dosya No ↕ </th>
-                                        <th data-sort="ongoing-musteri">Müşteri ↕ </th>
-                                        <th data-sort="ongoing-isim">İsim ↕ </th>
-                                        <th data-sort="ongoing-soyisim">Soyisim ↕ </th>
+                                        <th data-sort="ongoing-dosya">Dosya No   </th>
+                                        <th data-sort="ongoing-hakedis-status">Hakediş Statüsü   </th>
+                                        <th data-sort="ongoing-musteri">Müşteri   </th>
+                                        <th data-sort="ongoing-isim">İsim   </th>
+                                        <th data-sort="ongoing-soyisim">Soyisim   </th>
                                         <th data-sort="ongoing-il">İl ↕ </th>
                                         <th data-sort="ongoing-teslimat">Araç Teslim Tarihi ↕ </th>
                                         <th data-sort="ongoing-gun">Açık Kullanım Günü ↕ </th>
@@ -457,7 +459,7 @@
                                 </div>
                             </div>
                             
-                            <div id="inceleModalFooter" class="hidden" style="padding-top:0px; display:flex; justify-content:flex-start; margin-top:8px; margin-bottom: 24px;">
+                            <div id="inceleModalFooter" class="hidden" style="padding-top:0px; display:flex; justify-content:flex-start; gap: 12px; margin-top:8px; margin-bottom: 24px;">
                                 <button id="btnInceleTedarikciDegistir" style="padding: 10px 24px; font-size: 1rem; font-weight: 600; background-color: #E8F5E9; color: #2E7D32; border: 1px solid #C8E6C9; border-radius: 50px; cursor: pointer; display: flex; align-items: center; transition: all 0.2s; box-shadow: 0 4px 12px rgba(46, 125, 50, 0.15);">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;">
                                         <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
@@ -465,6 +467,32 @@
                                     </svg>
                                     Tedarikçi Değiştir
                                 </button>
+                                <button id="btnHakedisBelirle" class="hidden" style="padding: 10px 24px; font-size: 1rem; font-weight: 600; background-color: #E3F2FD; color: #1976D2; border: 1px solid #BBDEFB; border-radius: 50px; cursor: pointer; display: flex; align-items: center; transition: all 0.2s; box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);">
+                                    <span style="font-size: 1.2rem; margin-right: 8px;">🗓️</span> Hakediş Tarihini Belirle
+                                </button>
+                            </div>
+                            
+                            <div id="hakedisBelirleContainer" class="hidden" style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom: 24px;">
+                                <h4 style="margin:0 0 12px 0; color:#1e293b; font-size:1.05rem;">🗓️ Hakediş Tarihi Belirle / Güncelle</h4>
+                                <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                                    <div style="flex:1; min-width: 150px;">
+                                        <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Tarih (Gün.Ay.Yıl)</label>
+                                        <input type="text" id="inputOpsHakedisTarihi" placeholder="Örn: 25.03.2026" style="width:100%; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.95rem;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Saat</label>
+                                        <select id="inputOpsHakedisSaat" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:0.95rem; width:70px;">
+                                            <option value="">Seç</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:4px;">Dakika</label>
+                                        <select id="inputOpsHakedisDakika" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:0.95rem; width:70px;">
+                                            <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+                                        </select>
+                                    </div>
+                                    <button id="btnOpsHakedisKaydet" class="action-btn" style="background:#4338CA; color:white; border:none; padding:8px 16px; border-radius:6px; height: 38px;">Kaydet</button>
+                                </div>
                             </div>
                             
                             <div id="inceleLogsContainer"></div>

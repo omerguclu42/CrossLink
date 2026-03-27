@@ -108,6 +108,13 @@
                 <div id="teslimati-beklenen-section" class="section-container hidden">
                     <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h2 style="color: var(--text-dark); font-size: 1.25rem;">Teslimatı Beklenen Hizmetler</h2>
+                        <div style="display:flex; gap:12px;">
+                            <button id="btnResetTab1" class="action-btn">🔄 Filtreleri Sıfırla</button>
+                            <button id="btnExportTab1" class="action-btn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                Tablo Olarak Al
+                            </button>
+                        </div>
                     </div>
                     <div class="filters-section glass-card" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 16px;">
                         <div class="filter-group"><label>Hizmet No</label><input type="text" id="filter1-hizmet" placeholder="Hizmet No..." class="filter-input"></div>
@@ -122,7 +129,7 @@
                         <table class="data-table" id="table1">
                             <thead>
                                 <tr>
-                                    <th data-sort="sla" class="sortable-th">SLA SÜRE <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="sla" class="sortable-th">DOSYA ATAMA SÜRESİ <span class="sort-icon">↕</span></th>
                                     <th data-sort="hizmet" class="sortable-th">HİZMET NO <span class="sort-icon">⇅</span></th>
                                     <th data-sort="dosya" class="sortable-th">DOSYA NO <span class="sort-icon">⇅</span></th>
                                     <th data-sort="musteri" class="sortable-th">MÜŞTERİ <span class="sort-icon">⇅</span></th>
@@ -143,6 +150,13 @@
                 <div id="kullanimi-devam-eden-section" class="section-container hidden">
                     <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h2 style="color: var(--text-dark); font-size: 1.25rem;">Kullanımı Devam Eden Hizmetler</h2>
+                        <div style="display:flex; gap:12px;">
+                            <button id="btnResetTab2" class="action-btn">🔄 Filtreleri Sıfırla</button>
+                            <button id="btnExportTab2" class="action-btn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                Tablo Olarak Al
+                            </button>
+                        </div>
                     </div>
                     <div class="filters-section glass-card" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 16px;">
                         <div class="filter-group"><label>Hizmet No</label><input type="text" id="filter2-hizmet" placeholder="Hizmet No..." class="filter-input"></div>
@@ -160,6 +174,7 @@
                                 <tr>
                                     <th data-sort="hizmet" class="sortable-th">HİZMET NO <span class="sort-icon">⇅</span></th>
                                     <th data-sort="dosya" class="sortable-th">DOSYA NO <span class="sort-icon">⇅</span></th>
+                                    <th data-sort="hakedis-status" class="sortable-th">HAKEDİŞ STATÜSÜ <span class="sort-icon">⇅</span></th>
                                     <th data-sort="musteri" class="sortable-th">MÜŞTERİ <span class="sort-icon">⇅</span></th>
                                     <th data-sort="isim" class="sortable-th">İSİM <span class="sort-icon">⇅</span></th>
                                     <th data-sort="soyisim" class="sortable-th">SOYİSİM <span class="sort-icon">⇅</span></th>
@@ -180,6 +195,13 @@
                 <div id="kullanimi-biten-section" class="section-container hidden">
                     <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h2 style="color: var(--text-dark); font-size: 1.25rem;">Kullanımı Biten Hizmetler</h2>
+                        <div style="display:flex; gap:12px;">
+                            <button id="btnResetTab3" class="action-btn">🔄 Filtreleri Sıfırla</button>
+                            <button id="btnExportTab3" class="action-btn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                Tablo Olarak Al
+                            </button>
+                        </div>
                     </div>
                     <div class="filters-section glass-card" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 16px;">
                         <div class="filter-group"><label>Hizmet No</label><input type="text" id="filter3-hizmet" placeholder="Hizmet No..." class="filter-input"></div>

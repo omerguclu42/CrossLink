@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     supplierNameDisplay.textContent = currentSupplier;
     setupSidebarNavigation();
     initDashboard();
+    initTableSorting();
 });
 
 function setupSidebarNavigation() {
@@ -144,6 +145,7 @@ async function initDashboard() {
                  if (suppNorm === currentNorm || suppNorm.includes(currentNorm) || currentNorm.includes(suppNorm)) {
                      // Force explicit 'Tedarikçi' header onto the schema to ensure the downstream generalized filter passes
                      row['Tedarikçi'] = assignData.supplier;
+                     row['Atanma Tarihi'] = assignData.assignedAt;
                      pendingRows.push(row);
                  }
              }
@@ -434,7 +436,10 @@ function renderTab1(data) {
     data.forEach(r => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-            <td>${getSlaHtml(r['Dosya Açılış Tarihi'])}</td>
+            <td style="white-space:nowrap">
+                ${getSlaHtml(r['Atanma Tarihi'] || r['Dosya Açılış Tarihi'])}
+                <br><span style="font-size:0.75rem; color:var(--text-muted); opacity:0.8; margin-top:4px; display:block;">Atanış: ${r['Atanma Tarihi'] || r['Dosya Açılış Tarihi'] || '-'}</span>
+            </td>
             <td>${r['Hizmet No'] || '-'}</td>
             <td>${r['Dosya No'] || '-'}</td>
             <td>${r['Müşteri'] || '-'}</td>
@@ -470,17 +475,43 @@ function renderTab2(data) {
     }
     data.forEach(r => {
         const tr = document.createElement("tr");
+
+        // Badge Logic for Hakedis Status
+        const hStatus = localStorage.getItem("crosslink_hakedis_status_" + r['Dosya No']) || "Belirlenmedi";
+        let hBadge = "";
+        if (hStatus === "Belirlenmedi") {
+            hBadge = `<span class="status-badge" style="background:#FEE2E2; color:#991B1B; border: 1px solid #FECACA;">🔴 Belirlenmedi</span>`;
+        } else if (hStatus === "Belirlendi") {
+            hBadge = `<span class="status-badge" style="background:#DCFCE7; color:#166534; border: 1px solid #BBF7D0;">🟢 Belirlendi</span>`;
+        } else {
+            hBadge = `<span class="status-badge" style="background:#DBEAFE; color:#1E40AF; border: 1px solid #BFDBFE;">🔵 Güncellendi</span>`;
+        }
         
         // 27 Hours Logic Calculation Math
         let acikGun = 0;
         const teslimatStr = localStorage.getItem('crosslink_teslimat_date_' + r['Dosya No']) || r['Teslimat Tarihi'];
         const acilisMs = parseDateString(r['Dosya Açılış Tarihi']);
         const teslimMs = parseDateString(teslimatStr);
-        let now = new Date().getTime();
+        let calcEndMs = new Date().getTime();
+        const opHakedisStr = localStorage.getItem('crosslink_hakedis_date_' + r['Dosya No']);
+        const opIadeStr = localStorage.getItem('crosslink_iade_date_' + r['Dosya No']) || r['İade Tarihi'];
         
+        let iadeMs = null;
+        if (opIadeStr && opIadeStr !== "-") iadeMs = parseDateString(opIadeStr);
+        let hakedisMs = null;
+        if (opHakedisStr) hakedisMs = parseDateString(opHakedisStr);
+
+        if (hakedisMs && iadeMs) {
+            calcEndMs = Math.min(hakedisMs, iadeMs);
+        } else if (hakedisMs) {
+            calcEndMs = hakedisMs;
+        } else if (iadeMs) {
+            calcEndMs = iadeMs;
+        }
+
         let diffDays = 1;
-        if (teslimMs && now > teslimMs) {
-            let msDiff = now - teslimMs;
+        if (teslimMs && calcEndMs > teslimMs) {
+            let msDiff = calcEndMs - teslimMs;
             let hrs = msDiff / (1000 * 60 * 60);
             if (hrs <= 27) {
                 diffDays = 1;
@@ -494,6 +525,7 @@ function renderTab2(data) {
         tr.innerHTML = `
             <td>${r['Hizmet No'] || '-'}</td>
             <td>${r['Dosya No'] || '-'}</td>
+            <td style="white-space:nowrap">${hBadge}</td>
             <td>${r['Müşteri'] || '-'}</td>
             <td>${r['İsim'] || '-'}</td>
             <td>${r['Soyisim'] || '-'}</td>
@@ -534,16 +566,26 @@ function renderTab3(data) {
         const teslimatStr = localStorage.getItem('crosslink_teslimat_date_' + r['Dosya No']) || r['Teslimat Tarihi'];
         const iadeStr = localStorage.getItem('crosslink_iade_date_' + r['Dosya No']) || r['İade Tarihi'];
         const teslimMs = parseDateString(teslimatStr);
-        let nowOrReturn = new Date().getTime();
+        let calcEndMs = new Date().getTime();
+        const opHakedisStr = localStorage.getItem('crosslink_hakedis_date_' + r['Dosya No']);
         
-        if (iadeStr && iadeStr !== "-") {
-            let iadeMs = parseDateString(iadeStr);
-            if(iadeMs) nowOrReturn = iadeMs;
+        let iadeMs = null;
+        if (iadeStr && iadeStr !== "-") iadeMs = parseDateString(iadeStr);
+        
+        let hakedisMs = null;
+        if (opHakedisStr) hakedisMs = parseDateString(opHakedisStr);
+
+        if (hakedisMs && iadeMs) {
+            calcEndMs = Math.min(hakedisMs, iadeMs);
+        } else if (hakedisMs) {
+            calcEndMs = hakedisMs;
+        } else if (iadeMs) {
+            calcEndMs = iadeMs;
         }
 
         let diffDays = 1;
-        if (teslimMs && nowOrReturn > teslimMs) {
-            let msDiff = nowOrReturn - teslimMs;
+        if (teslimMs && calcEndMs > teslimMs) {
+            let msDiff = calcEndMs - teslimMs;
             let hrs = msDiff / (1000 * 60 * 60);
             if (hrs <= 27) {
                 diffDays = 1;
@@ -646,9 +688,26 @@ function updateStatistics() {
 
         if (isDelivered && teslimatStr && iadeStr) {
             const tDate = parseTurkishDate(teslimatStr);
-            const iDate = parseTurkishDate(iadeStr);
+            let iDate = parseTurkishDate(iadeStr);
+            
+            const opHakedisStr = localStorage.getItem('crosslink_hakedis_date_' + row['Dosya No']);
+            if (opHakedisStr) {
+                const hDate = parseTurkishDate(opHakedisStr);
+                if (hDate && iDate) {
+                    iDate = new Date(Math.min(iDate.getTime(), hDate.getTime()));
+                } else if (hDate) {
+                    iDate = hDate;
+                }
+            }
+
             if (tDate && iDate && iDate >= tDate) {
-                const diffDays = Math.floor((iDate - tDate) / (1000 * 60 * 60 * 24));
+                let msDiff = iDate - tDate;
+                let hrs = msDiff / (1000 * 60 * 60);
+                let diffDays = 1;
+                if (hrs > 27) {
+                    diffDays = Math.ceil((hrs - 3) / 24);
+                }
+                
                 totalIkameGun += diffDays;
                 ikameGunCount++;
 
@@ -837,6 +896,108 @@ function drawCharts() {
     pieChart.draw(pieData, pieOptions);
 }
 
+let sortCol1 = null, sortDesc1 = true;
+let sortCol2 = null, sortDesc2 = true;
+let sortCol3 = null, sortDesc3 = true;
+
+function initTableSorting() {
+    ['#table1', '#table2', '#table3'].forEach((tabId, idx) => {
+        document.querySelectorAll(`${tabId} th[data-sort]`).forEach(th => {
+            th.style.cursor = "pointer";
+            th.addEventListener("click", () => {
+                const col = th.getAttribute("data-sort");
+                if (idx === 0) {
+                    if (sortCol1 === col) sortDesc1 = !sortDesc1;
+                    else { sortCol1 = col; sortDesc1 = false; }
+                } else if (idx === 1) {
+                    if (sortCol2 === col) sortDesc2 = !sortDesc2;
+                    else { sortCol2 = col; sortDesc2 = false; }
+                } else if (idx === 2) {
+                    if (sortCol3 === col) sortDesc3 = !sortDesc3;
+                    else { sortCol3 = col; sortDesc3 = false; }
+                }
+                applyFilters();
+            });
+        });
+    });
+}
+
+function updateSortIcons(tabId, activeCol, activeDesc) {
+    document.querySelectorAll(`${tabId} th.sortable-th`).forEach(th => {
+        const iconSpan = th.querySelector('.sort-icon');
+        if (!iconSpan) return;
+        if (th.getAttribute("data-sort") === activeCol) {
+            iconSpan.textContent = activeDesc ? '⬇' : '⬆';
+            iconSpan.style.opacity = '1';
+        } else {
+            iconSpan.textContent = '↕';
+            iconSpan.style.opacity = '0.3';
+        }
+    });
+}
+
+function sortDashboardData(list, col, desc) {
+    if (!col) return list;
+    return list.sort((a, b) => {
+        let va = "", vb = "";
+        const getV = (r, ...keys) => {
+            for(let k of keys) {
+                const f = Object.keys(r).find(x => x && x.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase() === k.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase());
+                if(f && r[f]) return String(r[f]);
+            }
+            return "";
+        };
+        switch (col) {
+            case "hizmet": va = getV(a, 'Hizmet No'); vb = getV(b, 'Hizmet No'); break;
+            case "dosya": va = getV(a, 'Dosya No'); vb = getV(b, 'Dosya No'); break;
+            case "hakedis-status":
+                va = localStorage.getItem('crosslink_hakedis_status_' + getV(a, 'Dosya No')) || "Belirlenmedi";
+                vb = localStorage.getItem('crosslink_hakedis_status_' + getV(b, 'Dosya No')) || "Belirlenmedi";
+                break;
+            case "musteri": va = getV(a, 'Müşteri', 'Musteri'); vb = getV(b, 'Müşteri', 'Musteri'); break;
+            case "isim": va = getV(a, 'İsim', 'Isim'); vb = getV(b, 'İsim', 'Isim'); break;
+            case "soyisim": va = getV(a, 'Soyisim'); vb = getV(b, 'Soyisim'); break;
+            case "il": va = getV(a, 'İl', 'Il'); vb = getV(b, 'İl', 'Il'); break;
+            case "teminat": va = getV(a, 'Teminat'); vb = getV(b, 'Teminat'); break;
+            case "segment": 
+                va = localStorage.getItem('crosslink_segment_' + getV(a, 'Dosya No')) || getV(a, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti');
+                vb = localStorage.getItem('crosslink_segment_' + getV(b, 'Dosya No')) || getV(b, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti');
+                break;
+            case "sla":
+            case "aracteslim": 
+            case "iade": 
+                const parseDateStr = ds => {
+                    if(!ds) return 0;
+                    const p = ds.split(' ')[0].split('.');
+                    if(p.length===3) return new Date(p[2], p[1]-1, p[0]).getTime();
+                    return 0;
+                };
+                if (col === "sla") {
+                    va = parseDateStr(getV(a, 'Atanma Tarihi', 'Dosya Acilis Tarihi', 'Dosya Açılış Tarihi'));
+                    vb = parseDateStr(getV(b, 'Atanma Tarihi', 'Dosya Acilis Tarihi', 'Dosya Açılış Tarihi'));
+                } else if (col === "aracteslim") {
+                    va = parseDateStr(localStorage.getItem('crosslink_teslimat_date_' + getV(a, 'Dosya No')) || getV(a, 'Teslimat Tarihi'));
+                    vb = parseDateStr(localStorage.getItem('crosslink_teslimat_date_' + getV(b, 'Dosya No')) || getV(b, 'Teslimat Tarihi'));
+                } else {
+                    va = parseDateStr(localStorage.getItem('crosslink_iade_date_' + getV(a, 'Dosya No')) || getV(a, 'İade Tarihi', 'Iade Tarihi'));
+                    vb = parseDateStr(localStorage.getItem('crosslink_iade_date_' + getV(b, 'Dosya No')) || getV(b, 'İade Tarihi', 'Iade Tarihi'));
+                }
+                return desc ? vb - va : va - vb;
+            case "acikgun":
+                va = parseInt(a._acikGun || 0); vb = parseInt(b._acikGun || 0);
+                return desc ? vb - va : va - vb;
+            case "ikamegun":
+                va = parseInt(getV(a, 'Gün', 'Gun') || 0); vb = parseInt(getV(b, 'Gün', 'Gun') || 0);
+                return desc ? vb - va : va - vb;
+        }
+        
+        if (typeof va === "string") {
+            return desc ? vb.localeCompare(va, 'tr') : va.localeCompare(vb, 'tr');
+        }
+        return 0;
+    });
+}
+
 function applyFilters() {
     // Dynamic key value getter — handles Turkish unicode mismatches from Google Sheets
     function getRowVal(row, ...candidates) {
@@ -883,7 +1044,11 @@ function applyFilters() {
     fillCascadedSelect('filter1-musteri', getF1For('musteri'), r => getRowVal(r, 'Müşteri', 'Musteri'), f1Musteri);
     fillCascadedSelect('filter1-il', getF1For('il'), r => getRowVal(r, 'İl', 'Il'), f1Il);
     fillCascadedSelect('filter1-teminat', getF1For('teminat'), r => getRowVal(r, 'Teminat'), f1Teminat);
-    renderTab1(getF1For(''));
+    
+    let f1Data = getF1For('');
+    f1Data = sortDashboardData(f1Data, sortCol1, sortDesc1);
+    updateSortIcons('#table1', sortCol1, sortDesc1);
+    renderTab1(f1Data);
 
     // === TAB 2: Kullanımı Devam Eden ===
     const f2Hizmet  = toLowerTr(document.getElementById('filter2-hizmet')?.value || '');
@@ -912,7 +1077,29 @@ function applyFilters() {
     fillCascadedSelect('filter2-il', getF2For('il'), r => getRowVal(r, 'İl', 'Il'), f2Il);
     fillCascadedSelect('filter2-teminat', getF2For('teminat'), r => getRowVal(r, 'Teminat'), f2Teminat);
     fillCascadedSelect('filter2-segment', getF2For('segment'), r => localStorage.getItem('crosslink_segment_' + r['Dosya No']) || getRowVal(r, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti'), f2Segment);
-    renderTab2(getF2For(''));
+    
+    let f2Data = getF2For('');
+    // Dynamically calculate _acikGun for sort purposes
+    f2Data.forEach(r => {
+        let acikGun = 0;
+        let tDate = localStorage.getItem('crosslink_teslimat_date_' + getRowVal(r, 'Dosya No')) || getRowVal(r, 'Teslimat Tarihi');
+        if (tDate && tDate !== "-") {
+            try {
+                const p = tDate.split(' ')[0].split('.');
+                if (p.length === 3) {
+                    const d = new Date(p[2], p[1]-1, p[0]); d.setHours(0,0,0,0);
+                    const cur = new Date(); cur.setHours(0,0,0,0);
+                    const diffHours = Math.abs(cur - d) / (1000 * 60 * 60);
+                    acikGun = diffHours <= 27 ? 1 : Math.ceil((diffHours - 27) / 24) + 1;
+                }
+            } catch(e) {}
+        }
+        r._acikGun = acikGun;
+    });
+
+    f2Data = sortDashboardData(f2Data, sortCol2, sortDesc2);
+    updateSortIcons('#table2', sortCol2, sortDesc2);
+    renderTab2(f2Data);
 
     // === TAB 3: Kullanımı Biten ===
     const f3Hizmet  = toLowerTr(document.getElementById('filter3-hizmet')?.value || '');
@@ -941,7 +1128,11 @@ function applyFilters() {
     fillCascadedSelect('filter3-il', getF3For('il'), r => getRowVal(r, 'İl', 'Il'), f3Il);
     fillCascadedSelect('filter3-teminat', getF3For('teminat'), r => getRowVal(r, 'Teminat'), f3Teminat);
     fillCascadedSelect('filter3-segment', getF3For('segment'), r => localStorage.getItem('crosslink_segment_' + r['Dosya No']) || getRowVal(r, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti'), f3Segment);
-    renderTab3(getF3For(''));
+    
+    let f3Data = getF3For('');
+    f3Data = sortDashboardData(f3Data, sortCol3, sortDesc3);
+    updateSortIcons('#table3', sortCol3, sortDesc3);
+    renderTab3(f3Data);
 }
 
 function setupEventListeners() {
@@ -957,6 +1148,59 @@ function setupEventListeners() {
             el.addEventListener('input', applyFilters);
             el.addEventListener('change', applyFilters);
         });
+    });
+
+    function exportTableToCSV(tableId, filename) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        
+        let csv = [];
+        const headers = Array.from(table.querySelectorAll('thead th'))
+            .slice(0, -1) // Exclude İşlemler
+            .map(th => `"${th.textContent.replace('⇅', '').replace('⬇', '').replace('⬆', '').trim()}"`);
+        csv.push(headers.join(';'));
+    
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        if (rows.length === 0 || (rows.length === 1 && rows[0].innerText.includes("bulunamadı"))) {
+            alert("Dışa aktarılacak veri bulunamadı.");
+            return;
+        }
+    
+        rows.forEach(tr => {
+            const cols = Array.from(tr.querySelectorAll('td'))
+                .slice(0, -1)
+                .map(td => `"${td.innerText.replace(/"/g, '""').trim()}"`);
+            csv.push(cols.join(';'));
+        });
+    
+        const csvFile = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const downloadLink = document.createElement("a");
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+
+    ['1', '2', '3'].forEach(num => {
+        const resetBtn = document.getElementById(`btnResetTab${num}`);
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                let sectionId = num === '1' ? 'teslimati-beklenen-section' : (num === '2' ? 'kullanimi-devam-eden-section' : 'kullanimi-biten-section');
+                document.querySelectorAll(`#${sectionId} .filter-input`).forEach(el => el.value = '');
+                applyFilters();
+            });
+        }
+        
+        const exportBtn = document.getElementById(`btnExportTab${num}`);
+        if(exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                let names = { '1': 'Teslimati_Beklenen', '2': 'Kullanimi_Devam_Eden', '3': 'Kullanimi_Biten' };
+                let today = new Date().toISOString().split('T')[0];
+                exportTableToCSV(`table${num}`, `Tedarikci_${names[num]}_${today}.csv`);
+            });
+        }
     });
 
     const exportCsvBtn = document.getElementById("exportCsvBtn");

@@ -76,6 +76,14 @@
                     </div>
                 </div>
 
+                <div id="operasyonNotAlert" class="hidden" style="margin-bottom:20px; padding: 16px; background: #EEF2FF; border-left: 4px solid #4338CA; border-radius: 8px;">
+                    <h3 style="margin: 0 0 8px 0; font-size: 1.1rem; color: #4338CA; display: flex; align-items: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                        Operasyon Notu
+                    </h3>
+                    <p id="operasyonNotText" style="margin: 0; color: #374151; font-size: 0.95rem; line-height: 1.5;"></p>
+                </div>
+
                 <!-- 1. Müşteri Bilgileri -->
                 <section class="detail-section">
                     <div class="section-header">
@@ -157,7 +165,7 @@
                         </div>
                         <div class="form-group">
                             <label>Drop Kilometre</label>
-                            <input type="text" id="inputDropKm" class="form-control" placeholder="10.500">
+                            <input type="text" id="inputDropKm" class="form-control" placeholder="100">
                         </div>
                     </div>
                     <!-- Araç Bilgilerini Kaydet Butonu -->
@@ -186,16 +194,7 @@
                         </div>
                         <div class="form-group" id="hakedisGroup">
                             <label>Hakediş Tarihi</label>
-                            <div class="datetime-group">
-                                <input type="date" id="inputHakedisTarihiGunu" class="form-control" style="flex:2;">
-                                <select id="inputHakedisSaat" class="form-control" style="flex:1;">
-                                    <option value="">Saat</option>
-                                </select>
-                                <span>:</span>
-                                <select id="inputHakedisDakika" class="form-control" style="flex:1;">
-                                    <option value="">Dakika</option>
-                                </select>
-                            </div>
+                            <input type="text" id="inputHakedisTarihi" class="form-control" readonly placeholder="-">
                         </div>
                     </div>
                 </section>

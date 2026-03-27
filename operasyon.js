@@ -13,6 +13,92 @@ document.addEventListener("DOMContentLoaded", () => {
         user = {};
     }
 
+    // --- GLOBAL ACTIVITY LOG HELPERS ---
+    window.logActivityOps = function(dosyaNo, userIdentity, message) {
+        if (!dosyaNo) return;
+        let logs = JSON.parse(localStorage.getItem("crosslink_activity_logs_" + dosyaNo) || "[]");
+        const dObj = new Date();
+        const fDate = dObj.toLocaleDateString("tr-TR") + " " + dObj.toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' });
+        logs.unshift({ date: fDate, user: userIdentity, msg: message });
+        localStorage.setItem("crosslink_activity_logs_" + dosyaNo, JSON.stringify(logs));
+    };
+
+    window.renderCombinedLogs = function(dosyaNo, rowData, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = "";
+
+        let combined = [];
+        if (rowData && rowData.logs) {
+            rowData.logs.forEach(l => {
+                combined.push({
+                    timeRaw: String(l.time || ""),
+                    time: l.time,
+                    user: l.user || "Sistem",
+                    message: l.message
+                });
+            });
+        }
+
+        const localStr = localStorage.getItem("crosslink_activity_logs_" + dosyaNo);
+        if (localStr) {
+            try {
+                const localLogs = JSON.parse(localStr);
+                localLogs.forEach(l => {
+                    combined.push({
+                        timeRaw: String(l.date || ""),
+                        time: l.date,
+                        user: l.user || "Tedarikçi (Portal)",
+                        message: l.msg || l.message
+                    });
+                });
+            } catch(e) {}
+        }
+
+        const parseTime = (tStr) => {
+            if (!tStr) return 0;
+            const pts = tStr.trim().split(" ");
+            if (!pts[0]) return 0;
+            const dPts = pts[0].split(".");
+            let d = new Date(0);
+            if (dPts.length === 3) d = new Date(dPts[2], dPts[1]-1, dPts[0]);
+            if (pts[1]) {
+                const tPts = pts[1].split(":");
+                if (tPts[0]) d.setHours(tPts[0]);
+                if (tPts[1]) d.setMinutes(tPts[1]);
+                if (tPts[2]) d.setSeconds(tPts[2]);
+            }
+            return d.getTime();
+        };
+
+        combined.sort((a,b) => parseTime(b.timeRaw) - parseTime(a.timeRaw));
+
+        const logsBox = document.createElement('div');
+        logsBox.className = "modal-field";
+        logsBox.style.gridColumn = "1 / -1";
+        logsBox.style.marginTop = "16px";
+        
+        let logsHtml = `<h3 style="margin-bottom:8px; color:var(--text-dark); border-bottom:1px solid #E5E7EB; padding-bottom:4px;">📜 Tarihçe ve Loglar</h3>`;
+        
+        if (combined.length > 0) {
+            logsHtml += `<ul style="list-style:none; padding:0; margin:0;">`;
+            combined.forEach(log => {
+                const cleanMsg = (log.message || "").replace(" (Hasar)", "");
+                logsHtml += `<li style="padding:6px 0; border-bottom:1px dashed #F3F4F6; font-size:0.9rem;">
+                    <strong style="color:var(--primary-color)">[${log.time}]</strong> 
+                    <span style="font-weight:600; color:#374151;">${log.user}:</span> 
+                    <span style="color:var(--text-muted)">${cleanMsg}</span>
+                </li>`;
+            });
+            logsHtml += `</ul>`;
+        } else {
+            logsHtml += `<p style="color:var(--text-muted); font-size:0.9rem;">Henüz bir eylem kaydedilmedi.</p>`;
+        }
+        
+        logsBox.innerHTML = logsHtml;
+        container.appendChild(logsBox);
+    };
+
     // 2. Populate User Profile
     document.getElementById("profileName").textContent = user.adSoyad;
     document.getElementById("profileTitle").textContent = user.pozisyon || "Pozisyon Bulunamadı";
@@ -607,9 +693,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 </td>
                 <td>${row['Hizmet No'] || '-'}</td>
                 <td>${row['Dosya No'] || '-'}</td>
+                <td>${row['Dosya Açılış Tarihi'] || '-'}</td>
                 <td>${row['Müşteri'] || '-'}</td>
-                <td>${row['İl'] || '-'}</td>
-                <td>${row['Teminat'] || '-'}</td>
                 <td>${row['Poliçe No'] || '-'}</td>
                 <td>${row['İsim'] || '-'}</td>
                 <td>${row['Soyisim'] || '-'}</td>
@@ -1035,18 +1120,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     const normSupName = normalizeForSearch(sup.name);
                     const isteneSegQuery = (isteneSegment || "").toLowerCase().trim();
                     const musteriQuery = (rowData['Müşteri'] || "").toLowerCase().trim();
+                    const normMusteriQuery = normalizeForSearch(musteriQuery);
                     
                     // 1. Try Exact Match (Supplier + Customer)
                     let matchedPricing = supplierPricingData.find(p => 
                         normalizeForSearch(p['Tedarikçi']) === normSupName && 
-                        (p['Müşteri'] || "").toLowerCase().trim() === musteriQuery
+                        normalizeForSearch(p['Müşteri']) === normMusteriQuery
                     );
                     
                     // 2. Fallback to 'Varsayılan'
                     if (!matchedPricing) {
                          matchedPricing = supplierPricingData.find(p => 
                             normalizeForSearch(p['Tedarikçi']) === normSupName && 
-                            (p['Müşteri'] || "").toLowerCase().includes("varsay")
+                            normalizeForSearch(p['Müşteri']).includes("varsay")
                         );
                     }
                     
@@ -1589,7 +1675,7 @@ document.addEventListener("DOMContentLoaded", () => {
             else if (deliverySortCol === "teslimat-musteri") { valA = a['Müşteri']; valB = b['Müşteri']; }
             else if (deliverySortCol === "teslimat-il") { valA = a['İl']; valB = b['İl']; }
             else if (deliverySortCol === "teslimat-teminat") { valA = a['Teminat']; valB = b['Teminat']; }
-            else if (deliverySortCol === "teslimat-tarih") {
+            else if (deliverySortCol === "teslimat-tarih" || deliverySortCol === "teslimat-atanma") {
                 const parseD = ds => {
                     if(!ds) return 0;
                     const p = ds.split(' ');
@@ -1598,10 +1684,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     const t = p[1].split(':');
                     return new Date(d[2], d[1]-1, d[0], t[0], t[1] || 0).getTime();
                 };
-                valA = parseD(a['Dosya Açılış Tarihi']);
-                valB = parseD(b['Dosya Açılış Tarihi']);
+                if (deliverySortCol === "teslimat-tarih") {
+                    valA = parseD(a['Dosya Açılış Tarihi']);
+                    valB = parseD(b['Dosya Açılış Tarihi']);
+                } else {
+                    valA = parseD(a['Atanma Tarihi'] || a['Dosya Açılış Tarihi']);
+                    valB = parseD(b['Atanma Tarihi'] || b['Dosya Açılış Tarihi']);
+                }
                 return deliverySortDesc ? valB - valA : valA - valB;
             }
+            else if (deliverySortCol === "teslimat-police") { valA = a['Poliçe No']; valB = b['Poliçe No']; }
+            else if (deliverySortCol === "teslimat-isim") { valA = a['İsim']; valB = b['İsim']; }
+            else if (deliverySortCol === "teslimat-soyisim") { valA = a['Soyisim']; valB = b['Soyisim']; }
+            else if (deliverySortCol === "teslimat-segment") { valA = a['Talep Edilen Araç Segmenti']; valB = b['Talep Edilen Araç Segmenti']; }
 
             if(typeof valA === "string") {
                 valA = valA || ""; valB = valB || "";
@@ -1646,6 +1741,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const hours = match ? parseInt(match[1], 10) : 0;
             const slaColor = hours > 24 ? '#EF4444' : '#10B981';
 
+            const atanmaTarihi = r['Atanma Tarihi'] || r['Dosya Açılış Tarihi']; 
+            const atanmaSlaText = calculateSLA(atanmaTarihi);
+            const atanmaMatch = atanmaSlaText.match(/(\d+) Saat/);
+            const atanmaHours = atanmaMatch ? parseInt(atanmaMatch[1], 10) : 0;
+            const atanmaSlaColor = atanmaHours > 10 ? '#EF4444' : '#10B981';
+
             const tr = document.createElement("tr");
             
             tr.innerHTML = `
@@ -1654,6 +1755,12 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span style="margin-right:4px;">⏱️</span> ${slaText}
                     </span>
                     <br><span style="font-size:0.75rem; color:var(--text-muted); opacity:0.8; margin-top:4px; display:block;">Açılış: ${r['Dosya Açılış Tarihi'] || '-'}</span>
+                </td>
+                <td style="white-space:nowrap">
+                    <span class="sla-badge" style="background-color:rgba(217, 119, 6, 0.05); color:${atanmaSlaColor}; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.85rem;">
+                        <span style="margin-right:4px;">⏱️</span> ${atanmaSlaText}
+                    </span>
+                    <br><span style="font-size:0.75rem; color:var(--text-muted); opacity:0.8; margin-top:4px; display:block;">Atanış: ${atanmaTarihi || '-'}</span>
                 </td>
                 <td>${r['Tedarikçi'] || '-'}</td>
                 <td>${r['Hizmet No'] || '-'}</td>
@@ -1788,6 +1895,21 @@ document.addEventListener("DOMContentLoaded", () => {
         const rowData = deliveryData.find(r => r['Dosya No'] === dosyaNo);
         if (!rowData) return;
 
+        const lsMerge = {
+            'Drop KM':         localStorage.getItem('crosslink_drop_km_' + dosyaNo) || rowData['Drop Kilometre'] || rowData['Drop KM'],
+            'Plaka':           localStorage.getItem('crosslink_plaka_' + dosyaNo),
+            'Marka':           localStorage.getItem('crosslink_marka_' + dosyaNo),
+            'Model':           localStorage.getItem('crosslink_model_' + dosyaNo),
+            'Segment':         localStorage.getItem('crosslink_segment_' + dosyaNo),
+            'Kilometre':       localStorage.getItem('crosslink_km_' + dosyaNo),
+            'Araç Yılı':       localStorage.getItem('crosslink_yil_' + dosyaNo),
+            'Teslimat Tarihi': localStorage.getItem('crosslink_teslimat_date_' + dosyaNo),
+            'İade Tarihi':     localStorage.getItem('crosslink_iade_date_' + dosyaNo),
+            'Hakediş Tarihi':  localStorage.getItem('crosslink_hakedis_date_' + dosyaNo),
+        };
+        const mergedData = { ...rowData };
+        Object.entries(lsMerge).forEach(([k, v]) => { if (v) mergedData[k] = v; });
+
         document.getElementById('inceleDosyaHeader').textContent = dosyaNo;
         const grid = document.getElementById('inceleGridContainer');
         grid.innerHTML = "";
@@ -1796,45 +1918,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs'];
 
-        Object.keys(rowData).forEach(key => {
+        Object.keys(mergedData).forEach(key => {
             if (excludedKeys.some(ex => key.includes(ex))) return;
             
             const div = document.createElement('div');
             div.className = "modal-field";
             div.innerHTML = `
                 <span class="modal-label">${key}</span>
-                <div class="modal-value-box">${rowData[key] || '-'}</div>
+                <div class="modal-value-box">${mergedData[key] || '-'}</div>
             `;
             grid.appendChild(div);
         });
 
         // Inject Logs Box
-        if(rowData.logs) {
-            const logsBox = document.createElement('div');
-            logsBox.className = "modal-field";
-            logsBox.style.gridColumn = "1 / -1";
-            logsBox.style.marginTop = "16px";
-            
-            let logsHtml = `<h3 style="margin-bottom:8px; color:var(--text-dark); border-bottom:1px solid #E5E7EB; padding-bottom:4px;">📜 Tarihçe ve Loglar</h3>`;
-            if(rowData.logs && rowData.logs.length > 0) {
-                logsHtml += `<ul style="list-style:none; padding:0; margin:0;">`;
-                rowData.logs.forEach(log => {
-                    const cleanMsg = (log.message || "").replace(" (Hasar)", "");
-                    logsHtml += `<li style="padding:6px 0; border-bottom:1px dashed #F3F4F6; font-size:0.9rem;">
-                        <strong style="color:var(--primary-color)">[${log.time}]</strong> 
-                        <span style="font-weight:600; color:#374151;">${log.user}:</span> 
-                        <span style="color:var(--text-muted)">${cleanMsg}</span>
-                    </li>`;
-                });
-                logsHtml += `</ul>`;
-            } else {
-                logsHtml += `<p style="color:var(--text-muted); font-size:0.9rem;">Henüz bir eylem kaydedilmedi.</p>`;
-            }
-            logsBox.innerHTML = logsHtml;
-            if (document.getElementById('inceleLogsContainer')) document.getElementById('inceleLogsContainer').appendChild(logsBox);
-        }
+        window.renderCombinedLogs(dosyaNo, mergedData, 'inceleLogsContainer');
         
-        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, grid);
+        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, mergedData, grid);
         
         currentDosyaNo = dosyaNo;
         const footer = document.getElementById('inceleModalFooter');
@@ -1885,9 +1984,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (segment && segment !== "-" && isteneSegment && segment !== isteneSegment && typeof supplierPricingData !== 'undefined') {
                     const normSupName = normalizeForSearch(a.supplier);
                     const musteriQuery = (a.fullData['Müşteri'] || "").toLowerCase().trim();
-                    let matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && (p['Müşteri'] || "").toLowerCase().trim() === musteriQuery);
+                    const normMusteriQuery = normalizeForSearch(musteriQuery);
+                    let matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && normalizeForSearch(p['Müşteri']) === normMusteriQuery);
                     if (!matchedPricing) {
-                        matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && (p['Müşteri'] || "").toLowerCase().includes("varsay"));
+                        matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && normalizeForSearch(p['Müşteri']).includes("varsay"));
                     }
                     if (matchedPricing) {
                         const isteneCol = Object.keys(matchedPricing).find(k => k.toLowerCase().trim() === isteneSegment.toLowerCase().trim());
@@ -2037,6 +2137,10 @@ document.addEventListener("DOMContentLoaded", () => {
             let valA = "", valB = "";
             if (activeSortCol === "ongoing-tedarikci") { valA = a['Tedarikçi']; valB = b['Tedarikçi']; }
             else if (activeSortCol === "ongoing-dosya") { valA = a['Dosya No']; valB = b['Dosya No']; }
+            else if (activeSortCol === "ongoing-hakedis-status") {
+                valA = localStorage.getItem("crosslink_hakedis_status_" + a['Dosya No']) || "Belirlenmedi";
+                valB = localStorage.getItem("crosslink_hakedis_status_" + b['Dosya No']) || "Belirlenmedi";
+            }
             else if (activeSortCol === "ongoing-tarih") {
                 const parseD = ds => {
                     if(!ds) return 0;
@@ -2067,6 +2171,10 @@ document.addEventListener("DOMContentLoaded", () => {
             else if (activeSortCol === "ongoing-musteri") { valA = a['Müşteri']; valB = b['Müşteri']; }
             else if (activeSortCol === "ongoing-il") { valA = a['İl']; valB = b['İl']; }
             else if (activeSortCol === "ongoing-segment") { valA = a['Talep Edilen Araç Segmenti']; valB = b['Talep Edilen Araç Segmenti']; }
+            else if (activeSortCol === "ongoing-hizmet") { valA = a['Hizmet No']; valB = b['Hizmet No']; }
+            else if (activeSortCol === "ongoing-isim") { valA = a['İsim']; valB = b['İsim']; }
+            else if (activeSortCol === "ongoing-soyisim") { valA = a['Soyisim']; valB = b['Soyisim']; }
+            else if (activeSortCol === "ongoing-teminat") { valA = a['Teminat']; valB = b['Teminat']; }
 
             if(typeof valA === "string") {
                 valA = valA || ""; valB = valB || "";
@@ -2105,6 +2213,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         data.forEach(r => {
+            const hStatus = localStorage.getItem("crosslink_hakedis_status_" + r['Dosya No']) || "Belirlenmedi";
+            let hBadge = "";
+            if (hStatus === "Belirlenmedi") {
+                hBadge = `<span class="status-badge" style="background:#FEE2E2; color:#991B1B; border: 1px solid #FECACA;">🔴 Belirlenmedi</span>`;
+            } else if (hStatus === "Belirlendi") {
+                hBadge = `<span class="status-badge" style="background:#DCFCE7; color:#166534; border: 1px solid #BBF7D0;">🟢 Belirlendi</span>`;
+            } else {
+                hBadge = `<span class="status-badge" style="background:#DBEAFE; color:#1E40AF; border: 1px solid #BFDBFE;">🔵 Güncellendi</span>`;
+            }
+            
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td style="white-space:nowrap">
@@ -2114,6 +2232,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </td>
                 <td>${r['Hizmet No'] || '-'}</td>
                 <td>${r['Dosya No'] || '-'}</td>
+                <td style="white-space:nowrap">${hBadge}</td>
                 <td>${r['Müşteri'] || '-'}</td>
                 <td>${r['İsim'] || '-'}</td>
                 <td>${r['Soyisim'] || '-'}</td>
@@ -2154,6 +2273,7 @@ document.addEventListener("DOMContentLoaded", () => {
             'Araç Yılı':       localStorage.getItem('crosslink_yil_' + dosyaNo),
             'Teslimat Tarihi': localStorage.getItem('crosslink_teslimat_date_' + dosyaNo),
             'İade Tarihi':     localStorage.getItem('crosslink_iade_date_' + dosyaNo),
+            'Hakediş Tarihi':  localStorage.getItem('crosslink_hakedis_date_' + dosyaNo),
         };
         const mergedData = { ...rowData };
         Object.entries(lsMerge).forEach(([k, v]) => { if (v) mergedData[k] = v; });
@@ -2164,7 +2284,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const logsContainer = document.getElementById('inceleLogsContainer');
         if (logsContainer) logsContainer.innerHTML = "";
 
-        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs', '_acikGun', 'Araç Teslim Tarihi', 'Tedarikçi Adı', 'Tedarikçi'];
+        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs', '_acikGun', 'Araç Teslim Tarihi', 'Tedarikçi Adı', 'Tedarikçi', 'DropKm', 'Drop Kilometre', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti', 'Mevcut Araç Segmenti', 'Sigortalı Araç Segmenti'];
 
         Object.keys(mergedData).forEach(key => {
             if (excludedKeys.some(ex => key.includes(ex))) return;
@@ -2175,33 +2295,130 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
 
-        if(rowData.logs) {
-            const logsBox = document.createElement('div');
-            logsBox.className = "modal-field";
-            logsBox.style.gridColumn = "1 / -1";
-            logsBox.style.marginTop = "16px";
-            
-            let logsHtml = `<h3 style="margin-bottom:8px; color:var(--text-dark); border-bottom:1px solid #E5E7EB; padding-bottom:4px;">📜 Tarihçe ve Loglar</h3>`;
-            if(rowData.logs && rowData.logs.length > 0) {
-                logsHtml += `<ul style="list-style:none; padding:0; margin:0;">`;
-                rowData.logs.forEach(log => {
-                    const cleanMsg = (log.message || "").replace(" (Hasar)", "");
-                    logsHtml += `<li style="padding:6px 0; border-bottom:1px dashed #F3F4F6; font-size:0.9rem;">
-                        <strong style="color:var(--primary-color)">[${log.time}]</strong> 
-                        <span style="font-weight:600; color:#374151;">${log.user}:</span> 
-                        <span style="color:var(--text-muted)">${cleanMsg}</span>
-                    </li>`;
-                });
-                logsHtml += `</ul>`;
-            } else {
-                logsHtml += `<p style="color:var(--text-muted); font-size:0.9rem;">Henüz bir eylem kaydedilmedi.</p>`;
-            }
-            logsBox.innerHTML = logsHtml;
-            if (document.getElementById('inceleLogsContainer')) document.getElementById('inceleLogsContainer').appendChild(logsBox);
-        }
+        window.renderCombinedLogs(dosyaNo, rowData, 'inceleLogsContainer');
 
         if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, grid);
-        if (document.getElementById('inceleModalFooter')) document.getElementById('inceleModalFooter').classList.add("hidden");
+        
+        // --- Hakedis Tarihi Belirle Logic (Operations Only) ---
+        const inceleModalFooter = document.getElementById('inceleModalFooter');
+        const btnHakedisBelirle = document.getElementById('btnHakedisBelirle');
+        const hakedisContainer = document.getElementById('hakedisBelirleContainer');
+        const btnInceleTedarikciDegistir = document.getElementById('btnInceleTedarikciDegistir');
+        
+        if (inceleModalFooter) {
+            inceleModalFooter.classList.remove("hidden"); // Show footer for Active Rentals
+            if (btnInceleTedarikciDegistir) btnInceleTedarikciDegistir.classList.add("hidden"); // Not needed here normally
+            
+            if (hakedisContainer) hakedisContainer.classList.add("hidden");
+            
+            const hasAtamaAuth = true; // Bypassed locally per user request (login validation bug)
+            
+            if (btnHakedisBelirle) {
+                if (hasAtamaAuth) {
+                    btnHakedisBelirle.classList.remove("hidden");
+                    
+                    // Generate hours if empty
+                    const saatSelect = document.getElementById("inputOpsHakedisSaat");
+                    if (saatSelect && saatSelect.options.length <= 1) {
+                        saatSelect.innerHTML = '<option value="">Seç</option>';
+                        for (let i = 0; i < 24; i++) {
+                            const h = i.toString().padStart(2, '0');
+                            saatSelect.innerHTML += `<option value="${h}">${h}</option>`;
+                        }
+                    }
+                    
+                    btnHakedisBelirle.onclick = () => {
+                        if (!hakedisContainer) return;
+                        hakedisContainer.classList.toggle("hidden");
+                        
+                        if (!hakedisContainer.classList.contains("hidden")) {
+                            // Populate existing values
+                            const existingVal = localStorage.getItem("crosslink_hakedis_date_" + dosyaNo) || "";
+                            if (existingVal) {
+                                const parts = existingVal.split(" ");
+                                if(parts[0]) document.getElementById("inputOpsHakedisTarihi").value = parts[0];
+                                if(parts[1]) {
+                                    const tParts = parts[1].split(":");
+                                    if(tParts[0]) document.getElementById("inputOpsHakedisSaat").value = tParts[0];
+                                    if(tParts[1]) document.getElementById("inputOpsHakedisDakika").value = tParts[1];
+                                }
+                            } else {
+                                document.getElementById("inputOpsHakedisTarihi").value = "";
+                                document.getElementById("inputOpsHakedisSaat").value = "";
+                                document.getElementById("inputOpsHakedisDakika").value = "00";
+                            }
+                            
+                            // Bind Save
+                            document.getElementById("btnOpsHakedisKaydet").onclick = () => {
+                                const d = document.getElementById("inputOpsHakedisTarihi").value.trim();
+                                const h = document.getElementById("inputOpsHakedisSaat").value;
+                                const m = document.getElementById("inputOpsHakedisDakika").value;
+                                
+                                if (!d || !h) {
+                                    alert("Lütfen geçerli bir Gün.Ay.Yıl ve Saat formatı giriniz.");
+                                    return;
+                                }
+                                
+                                const finalDateStr = `${d} ${h}:${m}:00`;
+                                
+                                // Validate against Teslimat Tarihi
+                                const parseTurkishDateLocal = (dateStr) => {
+                                    if (!dateStr || typeof dateStr !== 'string') return null;
+                                    const dParts = dateStr.trim().split(' ');
+                                    if (!dParts[0]) return null;
+                                    const dp = dParts[0].split('.');
+                                    if (dp.length !== 3) return null;
+                                    let hr = 0, mn = 0, sc = 0;
+                                    if (dParts[1]) {
+                                        const tp = dParts[1].split(':');
+                                        if (tp[0]) hr = parseInt(tp[0], 10);
+                                        if (tp[1]) mn = parseInt(tp[1], 10);
+                                    }
+                                    return new Date(parseInt(dp[2], 10), parseInt(dp[1], 10) - 1, parseInt(dp[0], 10), hr, mn, sc);
+                                };
+                                
+                                let tesStr = mergedData ? mergedData['Teslimat Tarihi'] : null;
+                                if (!tesStr || tesStr === '-') tesStr = localStorage.getItem("crosslink_teslimat_date_" + dosyaNo);
+                                
+                                if (tesStr && tesStr !== '-') {
+                                    const pTes = parseTurkishDateLocal(tesStr);
+                                    const pHak = parseTurkishDateLocal(finalDateStr);
+                                    if (pTes && pHak && pHak <= pTes) {
+                                        alert("Hata: Hakediş Tarihi, Teslimat Tarihinden (" + tesStr + ") kesinlikle büyük olmalıdır!");
+                                        return;
+                                    }
+                                }
+                                const wasAlreadySet = localStorage.getItem("crosslink_hakedis_date_" + dosyaNo) ? true : false;
+                                const statusVal = wasAlreadySet ? "Güncellendi" : "Belirlendi";
+                                
+                                localStorage.setItem("crosslink_hakedis_date_" + dosyaNo, finalDateStr);
+                                localStorage.setItem("crosslink_hakedis_status_" + dosyaNo, statusVal);
+                                
+                                alert(`Hakediş Tarihi başarıyla ${statusVal.toLowerCase()}:\n${finalDateStr}`);
+                                hakedisContainer.classList.add("hidden");
+                                
+                                // Operations activity hook for Hakediş
+                                let userName = "Operasyon";
+                                try {
+                                    let lUser = JSON.parse(sessionStorage.getItem("crosslink_operasyon"));
+                                    if(lUser && lUser.adSoyad) userName = lUser.adSoyad;
+                                }catch(e){}
+                                window.logActivityOps(dosyaNo, userName, `Hakediş Tarihi ${statusVal}: ${finalDateStr}`);
+                                
+                                // Refresh underlying table if UI is updated
+                                if (typeof loadActiveRentalsData === "function") {
+                                    loadActiveRentalsData();
+                                    applyFilters();
+                                }
+                            };
+                        }
+                    };
+                } else {
+                    btnHakedisBelirle.classList.add("hidden");
+                }
+            }
+        }
+        
         document.getElementById('inceleModal').classList.remove("hidden");
     };
 
@@ -2442,27 +2659,45 @@ document.addEventListener("DOMContentLoaded", () => {
         const rowData = completedData.find(r => r['Dosya No'] === dosyaNo);
         if (!rowData) return;
 
+        // Merge localStorage supplier-entered values into display data
+        const lsMerge = {
+            'Drop KM':         localStorage.getItem('crosslink_drop_km_' + dosyaNo) || rowData['Drop Kilometre'] || rowData['Drop KM'],
+            'Plaka':           localStorage.getItem('crosslink_plaka_' + dosyaNo),
+            'Marka':           localStorage.getItem('crosslink_marka_' + dosyaNo),
+            'Model':           localStorage.getItem('crosslink_model_' + dosyaNo),
+            'Segment':         localStorage.getItem('crosslink_segment_' + dosyaNo),
+            'Kilometre':       localStorage.getItem('crosslink_km_' + dosyaNo),
+            'Araç Yılı':       localStorage.getItem('crosslink_yil_' + dosyaNo),
+            'Teslimat Tarihi': localStorage.getItem('crosslink_teslimat_date_' + dosyaNo),
+            'İade Tarihi':     localStorage.getItem('crosslink_iade_date_' + dosyaNo),
+            'Hakediş Tarihi':  localStorage.getItem('crosslink_hakedis_date_' + dosyaNo),
+        };
+        const mergedData = { ...rowData };
+        Object.entries(lsMerge).forEach(([k, v]) => { if (v) mergedData[k] = v; });
+
         document.getElementById('inceleDosyaHeader').textContent = dosyaNo;
         const grid = document.getElementById('inceleGridContainer');
         grid.innerHTML = "";
         const logsContainer = document.getElementById('inceleLogsContainer');
         if (logsContainer) logsContainer.innerHTML = "";
 
-        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar'];
+        const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs', '_acikGun', 'Araç Teslim Tarihi', 'Tedarikçi Adı', 'Tedarikçi', 'DropKm', 'Drop Kilometre', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti', 'Mevcut Araç Segmenti', 'Sigortalı Araç Segmenti'];
 
-        Object.keys(rowData).forEach(key => {
+        Object.keys(mergedData).forEach(key => {
             if (excludedKeys.some(ex => key.includes(ex))) return;
             
             const div = document.createElement('div');
             div.className = "modal-field";
             div.innerHTML = `
                 <span class="modal-label">${key}</span>
-                <div class="modal-value-box">${rowData[key] || '-'}</div>
+                <div class="modal-value-box">${mergedData[key] || '-'}</div>
             `;
             grid.appendChild(div);
         });
 
-        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, rowData, grid);
+        window.renderCombinedLogs(dosyaNo, rowData, 'inceleLogsContainer');
+
+        if (typeof populateTutarsalVeriler === "function") populateTutarsalVeriler(dosyaNo, mergedData, grid);
         if (document.getElementById('inceleModalFooter')) document.getElementById('inceleModalFooter').classList.add("hidden");
         document.getElementById('inceleModal').classList.remove("hidden");
     };
@@ -2558,7 +2793,7 @@ window.computeTutarsal = function(dosyaNo, rowData) {
     }
 
     // 3. Gün Bilgisi yoksa (Devam Eden/Beklenen süreçler), Hakediş/İade vs Teslimat üzerinden hesapla
-    if (gunBilgisiText === '-' || !gunBilgisiText || gunBilgisiText === ' Gün') {
+    if (gunBilgisiText === '-' || !gunBilgisiText || gunBilgisiText === ' Gün' || gunBilgisiText === '- Gün') {
         let tesDateStr = rowData ? rowData['Teslimat Tarihi'] : null;
         let hakedisDateStr = rowData ? rowData['Hakediş Tarihi'] : null;
         let iadeDateStr = rowData ? rowData['İade Tarihi'] : null;
@@ -2568,48 +2803,118 @@ window.computeTutarsal = function(dosyaNo, rowData) {
         const localIade = localStorage.getItem("crosslink_iade_date_" + dosyaNo);
         if (localIade) iadeDateStr = localIade;
 
-        let endDateStr = null;
-        if (hakedisDateStr && hakedisDateStr !== '-' && hakedisDateStr.trim() !== '') {
-            endDateStr = hakedisDateStr;
-        } else if (iadeDateStr && iadeDateStr !== '-' && iadeDateStr.trim() !== '') {
-            endDateStr = iadeDateStr;
+        const parseTurkishDateObj = (dateStr) => {
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            const dParts = dateStr.trim().split(' ');
+            if (!dParts[0]) return null;
+            const dp = dParts[0].split('.');
+            if (dp.length !== 3) return null;
+            let h = 0, m = 0, s = 0;
+            if (dParts[1]) {
+                const tp = dParts[1].split(':');
+                if (tp[0]) h = parseInt(tp[0], 10);
+                if (tp[1]) m = parseInt(tp[1], 10);
+                if (tp[2]) s = parseInt(tp[2], 10);
+            }
+            return new Date(parseInt(dp[2], 10), parseInt(dp[1], 10) - 1, parseInt(dp[0], 10), h, m, s);
+        };
+
+        const pTes = parseTurkishDateObj(tesDateStr);
+        const pHak = parseTurkishDateObj(hakedisDateStr);
+        const pIad = parseTurkishDateObj(iadeDateStr);
+        
+        let pEnd = null;
+        if (pHak && pIad) {
+            pEnd = (pIad < pHak) ? pIad : pHak;
+        } else if (pHak) {
+            pEnd = pHak;
+        } else if (pIad) {
+            pEnd = pIad;
         }
 
-        if (tesDateStr && tesDateStr !== '-' && endDateStr) {
-            const parseTurkishDateObj = (dateStr) => {
-                if (!dateStr || typeof dateStr !== 'string') return null;
-                const parts = dateStr.trim().split(' ')[0].split('.');
-                if (parts.length === 3) return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                return null;
-            };
+        if (pTes && pEnd) {
+                const diffTime = pEnd - pTes;
+                if (diffTime <= 0) {
+                    gunBilgisiText = '0 Gün';
+                } else {
+                    const diffHours = diffTime / (1000 * 60 * 60);
+                    let diffDays = diffHours <= 27 ? 1 : Math.ceil((diffHours - 27) / 24) + 1;
 
-            const pTes = parseTurkishDateObj(tesDateStr);
-            const pEnd = parseTurkishDateObj(endDateStr);
-            
-            if (pTes && pEnd) {
-                const diffTime = Math.abs(pEnd - pTes);
-                let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if(diffDays === 0) diffDays = 1;
-
-                if (!isNaN(diffDays)) {
-                    gunBilgisiText = diffDays + ' Gün';
-                    
-                    if (gunlukTutarText !== '-' && (toplamTutarText === '-' || !toplamTutarText)) {
-                        let parsedTutar = parseFloat(gunlukTutarText.toString().replace(/\./g, '').replace(',', '.'));
-                        if (!isNaN(parsedTutar)) {
-                            let top = parsedTutar * diffDays;
-                            toplamTutarText = new Intl.NumberFormat('tr-TR').format(top);
+                    if (!isNaN(diffDays)) {
+                        gunBilgisiText = diffDays + ' Gün';
+                        
+                        if (gunlukTutarText !== '-' && (toplamTutarText === '-' || !toplamTutarText)) {
+                            let parsedTutar = parseFloat(gunlukTutarText.toString().replace(/\./g, '').replace(',', '.'));
+                            if (!isNaN(parsedTutar)) {
+                                let top = parsedTutar * diffDays;
+                                toplamTutarText = new Intl.NumberFormat('tr-TR').format(top);
+                            }
                         }
                     }
                 }
             }
         }
+
+    let dropTutarText = '-';
+    let dropKmText = rowData ? (rowData['Drop KM'] || rowData['Drop Kilometre'] || rowData['DropKm']) : null;
+    let localDropKm = localStorage.getItem('crosslink_drop_km_' + dosyaNo);
+    if (localDropKm) dropKmText = localDropKm;
+    let dropKmNum = parseFloat(String(dropKmText || "").replace(',', '.')) || 0;
+
+    if (dropKmNum > 0 && typeof supplierPricingData !== 'undefined' && supplierPricingData.length > 0) {
+        let supplierName = rowData ? (rowData['Tedarikçi'] || rowData['Tedarikçi Adı']) : "";
+        let musteriName = rowData ? rowData['Müşteri'] : "";
+
+        if (!supplierName) {
+            let assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || '{}');
+            let assigned = assignments[dosyaNo];
+            if (assigned) supplierName = assigned.supplier;
+        }
+
+        if (supplierName) {
+            const localNorm = (str) => {
+                if (!str) return "";
+                let s = str.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+                return s.replace(/[^a-z0-9]/g, "");
+            };
+            const normSupName = localNorm(supplierName);
+            const normMusteriQuery = localNorm(musteriName);
+            
+            let match = supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']) === normMusteriQuery);
+            if (!match) {
+                match = supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']).includes("varsay"));
+            }
+
+            const dropKey = match ? Object.keys(match).find(k => k.toLowerCase().trim() === 'drop') : null;
+            if (match && dropKey && match[dropKey] !== undefined && match[dropKey] !== null) {
+                let dropRateText = match[dropKey].toString().replace(',', '.');
+                let dropRateNum = parseFloat(dropRateText) || 0;
+                if (dropRateNum > 0) {
+                    let dt = dropKmNum * dropRateNum;
+                    dropTutarText = new Intl.NumberFormat('tr-TR').format(dt) + ' ' + dovizText;
+                    
+                    // Add Drop Tutar to Toplam İkame Tutarı
+                    let currentTop = 0;
+                    if (toplamTutarText !== '-') {
+                        currentTop = parseFloat(toplamTutarText.toString().replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
+                    }
+                    toplamTutarText = new Intl.NumberFormat('tr-TR').format(currentTop + dt) + ' ' + dovizText;
+                } else {
+                    dropTutarText = "0 " + dovizText;
+                }
+            } else {
+                dropTutarText = "0 " + dovizText;
+            }
+        }
+    } else if (dropKmNum > 0) {
+        dropTutarText = "0 " + dovizText;
     }
 
     return { 
         gunlukTutar: gunlukTutarText, 
         gunBilgisi: gunBilgisiText, 
         toplamTutar: toplamTutarText, 
+        dropTutar: dropTutarText,
         doviz: dovizText 
     };
 };
@@ -2630,7 +2935,7 @@ window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
     
     tutarBox.innerHTML = `
         <h4 class="modal-data-title" style="margin-bottom: 12px; font-size:1.1rem;">Tutarsal Veriler</h4>
-        <div class="modal-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="modal-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
             <div class="modal-field">
                 <span class="modal-label">Günlük Tutar</span>
                 <div class="modal-value-box" style="color:#d97706; font-weight:700; font-size:1.1rem;">${fGunluk}</div>
@@ -2638,6 +2943,10 @@ window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
             <div class="modal-field">
                 <span class="modal-label">Gün Bilgisi</span>
                 <div class="modal-value-box" style="font-weight:700; font-size:1.1rem;">${vals.gunBilgisi || '-'}</div>
+            </div>
+            <div class="modal-field">
+                <span class="modal-label">Drop Tutarı</span>
+                <div class="modal-value-box" style="color:#ef4444; font-weight:700; font-size:1.1rem;">${vals.dropTutar || '-'}</div>
             </div>
             <div class="modal-field">
                 <span class="modal-label">Toplam İkame Tutarı</span>
