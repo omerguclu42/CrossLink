@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./dashboard.css?v=21">
     <link rel="stylesheet" href="./operasyon.css?v=21">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./operasyon.js?v=20260325_3"></script>
     <style>
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
@@ -51,7 +52,7 @@
                         <a href="#" class="op-sub-item" id="menu-teslimati-beklenen" style="display:flex; align-items:center;"><span class="op-sub-icon" style="margin-right:6px">🚦</span> Teslimatı Beklenen Hizmetler <span id="badge-teslimati" style="background:#F59E0B; color:#fff; border-radius:12px; min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; margin-left:auto; padding:0 6px;" class="hidden">0</span></a>
                         <a href="#" class="op-sub-item" id="menu-kullanimi-devam-eden" style="display:flex; align-items:center;"><span class="op-sub-icon" style="margin-right:6px">🧑‍✈️</span> Kullanımı Devam Eden Hizmetler <span id="badge-devam" style="background:#3B82F6; color:#fff; border-radius:12px; min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; margin-left:auto; padding:0 6px;" class="hidden">0</span></a>
                         <a href="#" class="op-sub-item" id="menu-kullanimi-biten" style="display:flex; align-items:center;"><span class="op-sub-icon" style="margin-right:6px">🤝</span> Kullanımı Biten Hizmetler <span id="badge-biten" style="background:#10B981; color:#fff; border-radius:12px; min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; margin-left:auto; padding:0 6px;" class="hidden">0</span></a>
-                        <a href="#" class="op-sub-item hidden" id="menu-raporlama"><span class="op-sub-icon" style="margin-right:6px">📊</span> Raporlama</a>
+                        <a href="#" class="op-sub-item" id="menu-raporlama"><span class="op-sub-icon" style="margin-right:6px">📊</span> Raporlama</a>
                     </div>
                 </div>
             </nav>
@@ -440,6 +441,102 @@
                                     <!-- Rows injected dynamically -->
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Raporlar Section -->
+                <div id="raporlar-section" class="section-container hidden">
+                    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h2 style="color: var(--text-dark); font-size: 1.25rem;">📊 Operasyon Raporları & Analitik</h2>
+                        <button id="btnRefreshReports" class="action-btn" style="background:#4338CA; color:white; border:none; box-shadow: 0 4px 12px rgba(67, 56, 202, 0.2);">
+                            🔄 Dinamik Yenile
+                        </button>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filters-section glass-card" style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 16px;">
+                        <div class="filter-group">
+                            <label>Başlangıç Tarihi</label>
+                            <input type="date" id="filter-report-start" class="filter-input">
+                        </div>
+                        <div class="filter-group">
+                            <label>Bitiş Tarihi</label>
+                            <input type="date" id="filter-report-end" class="filter-input">
+                        </div>
+                        <div class="filter-group">
+                            <label>Tedarikçi</label>
+                            <select id="filter-report-tedarikci" class="filter-input"><option value="">Tüm Tedarikçiler</option></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Müşteri / Kurum</label>
+                            <select id="filter-report-musteri" class="filter-input"><option value="">Tüm Müşteriler</option></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Araç Segmenti</label>
+                            <select id="filter-report-segment" class="filter-input">
+                                <option value="">Tüm Segmentler</option>
+                                <option value="B">B Segment</option>
+                                <option value="C">C Segment</option>
+                                <option value="D">D Segment</option>
+                                <option value="B-SUV">B-SUV</option>
+                                <option value="C-SUV">C-SUV</option>
+                                <option value="D-SUV">D-SUV</option>
+                                <option value="Pick-Up">Pick-Up</option>
+                            </select>
+                        </div>
+                        <div class="filter-group" style="display:flex; align-items:flex-end;">
+                            <button id="btnApplyReportFilters" class="action-btn" style="width:100%; border:1px solid var(--primary-color); color:var(--primary-color); height:42px; font-weight:600;">Sonuçları Filtrele</button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Cards -->
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom: 20px;">
+                        <div class="glass-card" style="padding:20px; border-left:4px solid #3B82F6; display:flex; flex-direction:column; justify-content:center;">
+                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Toplam İşlem Gören Dosya</div>
+                            <div id="kpi-total-files" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0</div>
+                        </div>
+                        <div class="glass-card" style="padding:20px; border-left:4px solid #10B981; display:flex; flex-direction:column; justify-content:center;">
+                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Aktif Kiralama (Müşteride)</div>
+                            <div id="kpi-active-rentals" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0</div>
+                        </div>
+                        <div class="glass-card" style="padding:20px; border-left:4px solid #EF4444; display:flex; flex-direction:column; justify-content:center;">
+                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Tahmini Toplam Maliyet</div>
+                            <div id="kpi-total-cost" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0 ₺</div>
+                        </div>
+                        <div class="glass-card" style="padding:20px; border-left:4px solid #F59E0B; display:flex; flex-direction:column; justify-content:center;">
+                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Ortalama İkame Süresi</div>
+                            <div id="kpi-avg-duration" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0 Gün</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
+                        <!-- Line Chart: Zaman Çizelgesi -->
+                        <div class="glass-card" style="padding:20px; grid-column: 1 / -1;">
+                            <h3 style="font-size:1.1rem; color:var(--text-dark); margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+                                Günlük Dosya Açılış Trendi
+                                <span style="font-size:0.85rem; padding:4px 8px; background:#F1F5F9; border-radius:12px; font-weight:500;">Son 30 Gün</span>
+                            </h3>
+                            <div style="position:relative; height:300px; width:100%;">
+                                <canvas id="chart-timeline"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Bar Chart: Tedarikçi Dağılımı -->
+                        <div class="glass-card" style="padding:20px;">
+                            <h3 style="font-size:1.1rem; color:var(--text-dark); margin-bottom:16px;">Tedarikçi Bazlı Dosya Yükü</h3>
+                            <div style="position:relative; height:250px; width:100%;">
+                                <canvas id="chart-supplier-bar"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Doughnut Chart: Müşteri Dağılımı -->
+                        <div class="glass-card" style="padding:20px;">
+                            <h3 style="font-size:1.1rem; color:var(--text-dark); margin-bottom:16px;">Ağırlıklı Müşteri Dağılımı</h3>
+                            <div style="position:relative; height:250px; width:100%; display:flex; justify-content:center;">
+                                <canvas id="chart-customer-pie"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>

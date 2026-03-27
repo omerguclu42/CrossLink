@@ -221,6 +221,15 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const menuRaporlama = document.getElementById("menu-raporlama");
+    if (menuRaporlama) {
+        menuRaporlama.addEventListener("click", () => {
+             switchView("raporlar-section");
+             menuRaporlama.classList.add("active");
+             if (typeof window.buildReportsDashboard === 'function') window.buildReportsDashboard();
+        });
+    }
+
     const PENDING_URL = 'https://docs.google.com/spreadsheets/d/1McoRE5bx0IWdnbqv-__gtn3ywY0U13zWnMPaArtuCxQ/gviz/tq?tqx=out:json';
     const COMPLETED_URL = 'https://docs.google.com/spreadsheets/d/1d-IUF5slokrV36jc5oOZcfK0v-lUz0JoC2fjEAm6CLo/gviz/tq?tqx=out:json';
     const SUPPLIER_MATRIX_URL = 'https://docs.google.com/spreadsheets/d/1BPCQjEIoRmG73RLwNXquB7fc6XmoyaK_De_yc5c2JFY/gviz/tq?tqx=out:json';
@@ -2768,6 +2777,272 @@ document.addEventListener("DOMContentLoaded", () => {
         document.body.removeChild(link);
     });
 
+    // ==========================================
+    // Raporlama ve Analitik Modülü (Analytics)
+    // ==========================================
+    window.reportsCharts = {};
+
+    window.buildReportsDashboard = function() {
+        let allItems = [];
+
+        // 1. Bekleyen Dosyalar
+        if (pendingData) {
+            pendingData.forEach(r => {
+                allItems.push({
+                    type: "Pending",
+                    dosyaNo: r['Dosya No'],
+                    musteri: r['Müşteri'] || "Bilinmiyor",
+                    tedarikci: r['Tedarikçi'] || r['Tedarikçi Adı'] || "Atanmadı",
+                    segment: r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor",
+                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi']),
+                    toplamMaliyet: 0,
+                    ikameGunu: 0
+                });
+            });
+        }
+
+        // 2. Teslimatı Bekleyenler
+        if (deliveryData) {
+            deliveryData.forEach(r => {
+                allItems.push({
+                    type: "Delivery",
+                    dosyaNo: r['Dosya No'],
+                    musteri: r['Müşteri'] || "Bilinmiyor",
+                    tedarikci: r['Tedarikçi'] || r['Tedarikçi Adı'] || "Atanmadı",
+                    segment: r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor",
+                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi']),
+                    toplamMaliyet: 0,
+                    ikameGunu: 0
+                });
+            });
+        }
+
+        // 3. Kullanımı Devam Eden Hizmetler (Aktif)
+        if (activeRentalsData) {
+            activeRentalsData.forEach(a => {
+                let r = a.fullData || {};
+                let vars = window.computeTutarsal(a.dosyaNo, r);
+                let maliyet = parseFloat(String(vars.toplamTutar).replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
+                let dayStr = vars.gunBilgisi ? String(vars.gunBilgisi).replace(/[^0-9]/g, "") : "0";
+                
+                allItems.push({
+                    type: "Ongoing",
+                    dosyaNo: a.dosyaNo,
+                    musteri: r['Müşteri'] || "Bilinmiyor",
+                    tedarikci: a.supplier || "Atanmadı",
+                    segment: a.plakaInfo ? a.plakaInfo.segment : (r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor"),
+                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi'] || a.tarih),
+                    toplamMaliyet: maliyet,
+                    ikameGunu: parseInt(dayStr) || 0
+                });
+            });
+        }
+
+        // 4. Kullanımı Biten Hizmetler
+        if (completedData) {
+            completedData.forEach(r => {
+                let vars = window.computeTutarsal(r['Dosya No'], r);
+                let maliyet = parseFloat(String(vars.toplamTutar).replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
+                let dayStr = vars.gunBilgisi ? String(vars.gunBilgisi).replace(/[^0-9]/g, "") : "0";
+                
+                allItems.push({
+                    type: "Completed",
+                    dosyaNo: r['Dosya No'],
+                    musteri: r['Müşteri'] || "Bilinmiyor",
+                    tedarikci: r['Tedarikçi'] || "Atanmadı",
+                    segment: r['İkame Araç Segmenti'] || r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor",
+                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi']),
+                    toplamMaliyet: maliyet,
+                    ikameGunu: parseInt(dayStr) || 0
+                });
+            });
+        }
+        
+        window.allReportData = allItems;
+        populateReportFilters();
+        window.applyReportFiltersAndDraw();
+    };
+
+    function parseRaporDate(dStr) {
+        if (!dStr) return new Date(0);
+        let parts = dStr.split(/[\s.:\/,-]/);
+        if (parts.length >= 3) {
+            let day = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10) - 1;
+            let year = parseInt(parts[2], 10);
+            if (year < 100) year += 2000;
+            let d = new Date(year, month, day);
+            if (isNaN(d.getTime())) return new Date(0);
+            return d;
+        }
+        return new Date(0);
+    }
+
+    function populateReportFilters() {
+        if (!window.allReportData) return;
+        const suppliers = [...new Set(window.allReportData.map(item => item.tedarikci))].filter(Boolean).filter(s => s !== "Atanmadı").sort();
+        const customers = [...new Set(window.allReportData.map(item => item.musteri))].filter(Boolean).filter(c => c !== "Bilinmiyor").sort();
+        
+        const selTedarikci = document.getElementById("filter-report-tedarikci");
+        if (selTedarikci && selTedarikci.options.length <= 1) {
+            suppliers.forEach(s => selTedarikci.add(new Option(s, s)));
+        }
+        
+        const selMusteri = document.getElementById("filter-report-musteri");
+        if (selMusteri && selMusteri.options.length <= 1) {
+            customers.forEach(s => selMusteri.add(new Option(s, s)));
+        }
+    }
+
+    window.applyReportFiltersAndDraw = function() {
+        let filtered = window.allReportData || [];
+        
+        const startDate = document.getElementById("filter-report-start").value;
+        const endDate = document.getElementById("filter-report-end").value;
+        const tedarikci = document.getElementById("filter-report-tedarikci").value;
+        const musteri = document.getElementById("filter-report-musteri").value;
+        const segment = document.getElementById("filter-report-segment").value;
+        
+        if (startDate) {
+            const startD = new Date(startDate);
+            startD.setHours(0,0,0,0);
+            filtered = filtered.filter(item => item.tarihObj >= startD);
+        }
+        if (endDate) {
+            const endD = new Date(endDate);
+            endD.setHours(23,59,59,999);
+            filtered = filtered.filter(item => item.tarihObj <= endD);
+        }
+        if (tedarikci) {
+            filtered = filtered.filter(item => item.tedarikci === tedarikci);
+        }
+        if (musteri) {
+            filtered = filtered.filter(item => item.musteri === musteri);
+        }
+        if (segment && segment !== "") {
+            filtered = filtered.filter(item => item.segment.toLowerCase().includes(segment.toLowerCase()));
+        }
+        
+        const totalFiles = filtered.length;
+        const activeRentals = filtered.filter(f => f.type === "Ongoing").length;
+        let totalCost = 0;
+        let totalDays = 0;
+        let filesWithDays = 0;
+        
+        filtered.forEach(f => {
+            totalCost += f.toplamMaliyet;
+            if (f.ikameGunu > 0) {
+                totalDays += f.ikameGunu;
+                filesWithDays++;
+            }
+        });
+        
+        const avgDuration = filesWithDays > 0 ? (totalDays / filesWithDays).toFixed(1) : 0;
+        
+        const fCostEl = document.getElementById("kpi-total-cost");
+        const fTotalEl = document.getElementById("kpi-total-files");
+        const fActiveEl = document.getElementById("kpi-active-rentals");
+        const fAvgEl = document.getElementById("kpi-avg-duration");
+        
+        if(fTotalEl) fTotalEl.textContent = totalFiles;
+        if(fActiveEl) fActiveEl.textContent = activeRentals;
+        if(fCostEl) fCostEl.textContent = new Intl.NumberFormat('tr-TR').format(totalCost) + ' ₺';
+        if(fAvgEl) fAvgEl.textContent = avgDuration + ' Gün';
+        
+        drawReportCharts(filtered);
+    };
+
+    function drawReportCharts(data) {
+        if (typeof Chart === 'undefined') return;
+        
+        // 1. Line Chart (Timeline)
+        const timelineMap = {};
+        data.forEach(item => {
+            if (item.tarihObj.getTime() === 0) return;
+            let dateKey = String(item.tarihObj.getDate()).padStart(2, '0') + '.' + String(item.tarihObj.getMonth() + 1).padStart(2, '0');
+            timelineMap[dateKey] = (timelineMap[dateKey] || 0) + 1;
+        });
+        
+        let sortedDates = Object.keys(timelineMap).sort((a,b) => {
+            let pA = a.split('.'); let pB = b.split('.');
+            let moA = parseInt(pA[1]), dyA = parseInt(pA[0]);
+            let moB = parseInt(pB[1]), dyB = parseInt(pB[0]);
+            if (moA !== moB) return moA - moB;
+            return dyA - dyB;
+        });
+
+        if (sortedDates.length > 30) sortedDates = sortedDates.slice(sortedDates.length - 30);
+        const timelineVals = sortedDates.map(k => timelineMap[k]);
+        
+        if (window.reportsCharts.timeline) window.reportsCharts.timeline.destroy();
+        const ctxTime = document.getElementById("chart-timeline");
+        if (ctxTime) {
+            window.reportsCharts.timeline = new Chart(ctxTime.getContext("2d"), {
+                type: 'line',
+                data: { labels: sortedDates, datasets: [{ label: 'Açılan Dosya (Adet)', data: timelineVals, borderColor: '#4338CA', backgroundColor: 'rgba(67, 56, 202, 0.1)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+        
+        // 2. Bar Chart (Supplier Distribution)
+        const supplierMap = {};
+        data.forEach(item => {
+            let s = item.tedarikci;
+            if (s === "Atanmadı") return;
+            if (!supplierMap[s]) supplierMap[s] = { count: 0, cost: 0 };
+            supplierMap[s].count++;
+            supplierMap[s].cost += item.toplamMaliyet;
+        });
+        
+        const suppLabels = Object.keys(supplierMap).sort((a,b) => supplierMap[b].count - supplierMap[a].count).slice(0, 15);
+        const suppCounts = suppLabels.map(k => supplierMap[k].count);
+        const suppCosts = suppLabels.map(k => supplierMap[k].cost);
+        
+        if (window.reportsCharts.supplier) window.reportsCharts.supplier.destroy();
+        const ctxSupp = document.getElementById("chart-supplier-bar");
+        if (ctxSupp) {
+            window.reportsCharts.supplier = new Chart(ctxSupp.getContext("2d"), {
+                type: 'bar',
+                data: {
+                    labels: suppLabels,
+                    datasets: [
+                        { label: 'Tahmini Maliyet Yükü (₺)', data: suppCosts, backgroundColor: '#EF4444', yAxisID: 'y1', borderRadius: 4 },
+                        { label: 'Toplam Hizmet Edilen Dosya', data: suppCounts, backgroundColor: '#3B82F6', yAxisID: 'y', borderRadius: 4 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { type: 'linear', position: 'left', beginAtZero: true }, y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } } }
+            });
+        }
+
+        // 3. Doughnut (Customer Pie)
+        const custMap = {};
+        data.forEach(item => {
+            let c = item.musteri;
+            if (c === "Bilinmiyor") return;
+            custMap[c] = (custMap[c] || 0) + 1;
+        });
+        
+        const custLabels = Object.keys(custMap).sort((a,b) => custMap[b] - custMap[a]).slice(0, 8);
+        const custVals = custLabels.map(k => custMap[k]);
+        
+        if (window.reportsCharts.customer) window.reportsCharts.customer.destroy();
+        const ctxCust = document.getElementById("chart-customer-pie");
+        const pieColors = ['#4338CA', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#06B6D4'];
+        if (ctxCust) {
+            window.reportsCharts.customer = new Chart(ctxCust.getContext("2d"), {
+                type: 'doughnut',
+                data: { labels: custLabels, datasets: [{ data: custVals, backgroundColor: pieColors, borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, cutout: '65%' }
+            });
+        }
+    }
+
+    const btnRefreshReports = document.getElementById("btnRefreshReports");
+    if(btnRefreshReports) btnRefreshReports.addEventListener("click", () => window.buildReportsDashboard());
+    
+    const btnApplyFilters = document.getElementById("btnApplyReportFilters");
+    if(btnApplyFilters) btnApplyFilters.addEventListener("click", () => window.applyReportFiltersAndDraw());
+
 });
 
 // ==========================================
@@ -2863,6 +3138,7 @@ window.computeTutarsal = function(dosyaNo, rowData) {
 
     let dropTutarText = '-';
     let debugTrace = 'N/A';
+    let dropRateNumFinal = 0;
     let dropKmText = rowData ? (rowData['Drop KM'] || rowData['Drop Kilometre'] || rowData['DropKm']) : null;
     let localDropKm = localStorage.getItem('crosslink_drop_km_' + dosyaNo);
     if (localDropKm) dropKmText = localDropKm;
@@ -2871,8 +3147,6 @@ window.computeTutarsal = function(dosyaNo, rowData) {
     if (dropKmNum > 0 && typeof window.supplierPricingData !== 'undefined' && window.supplierPricingData.length > 0) {
         let supplierName = rowData ? (rowData['Tedarikçi'] || rowData['Tedarikçi Adı']) : "";
         let musteriName = rowData ? rowData['Müşteri'] : "";
-
-        let dropRateNumFinal = 0;
 
         if (!supplierName || !musteriName) {
             let assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || '{}');
@@ -2897,9 +3171,10 @@ window.computeTutarsal = function(dosyaNo, rowData) {
                 match = window.supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']).includes("varsay"));
             }
 
-            debugTrace = `[Sup: ${supplierName}] [Cust: ${musteriName}] [Matched: ${match ? "YES" : "NO"}]`;
-
             const dropKey = match ? Object.keys(match).find(k => k.toLowerCase().trim() === 'drop') : null;
+            let dropRateText = dropKey ? match[dropKey].toString().replace(',', '.') : 'N/A';
+            debugTrace = `[Sup: ${supplierName}] [Cust: ${musteriName}] [M: ${match ? "YES" : "NO"}] [DK: ${dropKey}] [DV: ${dropRateText}]`;
+
             if (match && dropKey && match[dropKey] !== undefined && match[dropKey] !== null) {
                 let dropRateText = match[dropKey].toString().replace(',', '.');
                 let dropRateNum = parseFloat(dropRateText) || 0;
@@ -2931,7 +3206,7 @@ window.computeTutarsal = function(dosyaNo, rowData) {
         gunBilgisi: gunBilgisiText, 
         toplamTutar: toplamTutarText, 
         dropTutar: dropTutarText,
-        dropRate: typeof dropRateNumFinal !== 'undefined' ? dropRateNumFinal : 0,
+        dropRate: dropRateNumFinal,
         debugTrace: debugTrace,
         doviz: dovizText 
     };
@@ -2953,7 +3228,7 @@ window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
     
     tutarBox.innerHTML = `
         <h4 class="modal-data-title" style="margin-bottom: 12px; font-size:1.1rem;">Tutarsal Veriler</h4>
-        <div class="modal-grid" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="modal-grid" style="grid-template-columns: repeat(5, 1fr);">
             <div class="modal-field">
                 <span class="modal-label">Günlük Tutar</span>
                 <div class="modal-value-box" style="color:#d97706; font-weight:700; font-size:1.1rem;">${fGunluk}</div>
@@ -2973,10 +3248,6 @@ window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
             <div class="modal-field">
                 <span class="modal-label">Toplam İkame Tutarı</span>
                 <div class="modal-value-box" style="color:#16a34a; font-weight:700; font-size:1.1rem;">${fToplam}</div>
-            </div>
-            <div class="modal-field">
-                <span class="modal-label">Sistem Debug (Hata Takibi)</span>
-                <div class="modal-value-box" style="color:#2563eb; font-weight:700; font-size:0.8rem; overflow:hidden;">${vals.debugTrace}</div>
             </div>
         </div>
     `;
