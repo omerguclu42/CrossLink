@@ -410,19 +410,12 @@ async function setupVehicleAndDateFields(file, isDelivered, isTeslimatMaked) {
             inpPlaka.readOnly = true;
             inpSegment.readOnly = true;
             inpKm.readOnly = true;
-            inpDropKm.disabled = false; // Teslimat sonrası drop km girilebilir
-            // Drop KM her input'ta otomatik kaydet
-            inpDropKm.addEventListener("input", (e) => {
-                const val = e.target.value.replace(/[^0-9]/g, "");
-                localStorage.setItem("crosslink_drop_km_" + file['Dosya No'], val);
-            });
+            inpDropKm.readOnly = true; // Teslimat sonrası Drop KM değiştirilemez
             document.getElementById("btnStartTeslimat").disabled = true;
 
-            // Kaydet butonu bu aşamada da görünsün (sadece drop km için)
             const btnSV = document.getElementById('btnSaveVehicleInfo');
             if (btnSV) {
-                btnSV.style.display = 'block';
-                btnSV.textContent = '💾 Drop KM Kaydet';
+                btnSV.style.display = 'none';
             }
 
             // Enable Iade Button because Teslimat is marked
@@ -818,10 +811,7 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
             const hS = document.getElementById("inputHakedisSaat").value;
             const hD = document.getElementById("inputHakedisDakika").value;
             
-            if (!hG || !hS || !hD) {
-                alert("Lütfen araç iade sürecini başlatmadan önce 'Hakediş Tarihi' (Gün, Saat ve Dakika) bilgisini eksiksiz doldurunuz.");
-                return;
-            }
+            // Hakediş Tarihi validation removed as requested by the user
             confirmIadeModal.classList.remove("hidden");
         });
     }
@@ -899,6 +889,13 @@ function setupEvrakAndSmsLogic(isDelivered, file) {
                 // Save Local Storage States
                 localStorage.setItem("crosslink_teslimat_date_" + dosyaNo, currentOtpDate);
                 localStorage.setItem("crosslink_teslimat_" + dosyaNo, "true");
+
+                // Immediately save Drop KM so it persists across sessions
+                const dropKmAtConfirm = (document.getElementById("inputDropKm") || {}).value;
+                if (dropKmAtConfirm) {
+                    localStorage.setItem("crosslink_drop_km_" + dosyaNo, dropKmAtConfirm.replace(/[^0-9]/g, ""));
+                }
+
 
                 // Enable Iade process dynamically
                 document.getElementById("btnStartIade").disabled = false;

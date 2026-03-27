@@ -1315,9 +1315,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const fteminat = document.getElementById("filter-teminat").value;
         const fsegment = document.getElementById("filter-segment").value;
         
+        const assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || "{}");
         // Cascading Dropdowns Logic
         const getFilteredFor = (skipField) => {
             return pendingData.filter(r => {
+                if (r['Dosya No'] && assignments[r['Dosya No']]) return false;
                 if (fhizmet && !(r['Hizmet No']||"").toLocaleLowerCase("tr-TR").includes(fhizmet)) return false;
                 if (fdosya && !(r['Dosya No']||"").toLocaleLowerCase("tr-TR").includes(fdosya)) return false;
                 if (fpolice && !(r['Poliçe No']||"").toLocaleLowerCase("tr-TR").includes(fpolice)) return false;
@@ -2141,6 +2143,21 @@ document.addEventListener("DOMContentLoaded", () => {
         const rowData = activeRentalsData.find(r => r['Dosya No'] === dosyaNo);
         if (!rowData) return;
 
+        // Merge localStorage supplier-entered values into display data
+        const lsMerge = {
+            'Drop KM':         localStorage.getItem('crosslink_drop_km_' + dosyaNo) || rowData['Drop Kilometre'] || rowData['Drop KM'],
+            'Plaka':           localStorage.getItem('crosslink_plaka_' + dosyaNo),
+            'Marka':           localStorage.getItem('crosslink_marka_' + dosyaNo),
+            'Model':           localStorage.getItem('crosslink_model_' + dosyaNo),
+            'Segment':         localStorage.getItem('crosslink_segment_' + dosyaNo),
+            'Kilometre':       localStorage.getItem('crosslink_km_' + dosyaNo),
+            'Araç Yılı':       localStorage.getItem('crosslink_yil_' + dosyaNo),
+            'Teslimat Tarihi': localStorage.getItem('crosslink_teslimat_date_' + dosyaNo),
+            'İade Tarihi':     localStorage.getItem('crosslink_iade_date_' + dosyaNo),
+        };
+        const mergedData = { ...rowData };
+        Object.entries(lsMerge).forEach(([k, v]) => { if (v) mergedData[k] = v; });
+
         document.getElementById('inceleDosyaHeader').textContent = dosyaNo;
         const grid = document.getElementById('inceleGridContainer');
         grid.innerHTML = "";
@@ -2149,16 +2166,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const excludedKeys = ['Drop Çarpan', 'Drop Toplam', 'Günlük Tutar', 'Toplam Tutar', 'logs', '_acikGun', 'Araç Teslim Tarihi', 'Tedarikçi Adı', 'Tedarikçi'];
 
-        Object.keys(rowData).forEach(key => {
+        Object.keys(mergedData).forEach(key => {
             if (excludedKeys.some(ex => key.includes(ex))) return;
             const div = document.createElement('div');
             div.className = "modal-field";
-            div.innerHTML = `
-                <span class="modal-label">${key}</span>
-                <div class="modal-value-box">${rowData[key] || '-'}</div>
-            `;
+            div.innerHTML = `<span class="modal-label">${key}</span><div class="modal-value-box">${mergedData[key] || '-'}</div>`;
             grid.appendChild(div);
         });
+
 
         if(rowData.logs) {
             const logsBox = document.createElement('div');

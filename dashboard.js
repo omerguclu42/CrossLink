@@ -315,7 +315,12 @@ function populateDropdowns() {
     const uniqueProvinces = new Set();
     const uniqueCustomers = new Set();
 
-    const TR_MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağtos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+    const TR_MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+
+    const filterYil = document.getElementById('filterYil');
+    const filterDosyaTarihi = document.getElementById('filterDosyaTarihi');
+    const filterIl = document.getElementById('filterIl');
+    const filterMusteri = document.getElementById('filterMusteri');
 
     combinedData.forEach(row => {
         if (row['Dosya Açılış Tarihi']) {
@@ -433,7 +438,6 @@ function renderTab1(data) {
             <td>${r['Hizmet No'] || '-'}</td>
             <td>${r['Dosya No'] || '-'}</td>
             <td>${r['Müşteri'] || '-'}</td>
-            <td>${r['Poliçe No'] || '-'}</td>
             <td>${r['İsim'] || '-'}</td>
             <td>${r['Soyisim'] || '-'}</td>
             <td>${r['İl'] || '-'}</td>
@@ -491,6 +495,9 @@ function renderTab2(data) {
             <td>${r['Hizmet No'] || '-'}</td>
             <td>${r['Dosya No'] || '-'}</td>
             <td>${r['Müşteri'] || '-'}</td>
+            <td>${r['İsim'] || '-'}</td>
+            <td>${r['Soyisim'] || '-'}</td>
+            <td>${r['İl'] || '-'}</td>
             <td>${teslimatStr || '-'}</td>
             <td>${diffDays} Gün</td>
             <td>${r['Teminat'] || '-'}</td>
@@ -545,13 +552,15 @@ function renderTab3(data) {
             }
         }
 
-        const localSeg = localStorage.getItem('crosslink_segment_' + r['Dosya No']) || r['Segment'];
+        const localSeg = localStorage.getItem('crosslink_segment_' + r['Dosya No']) || r['İkame Araç Segmenti'] || r['Segment'] || r['Talep Edilen Araç Segmenti'];
 
         tr.innerHTML = `
             <td>${r['Hizmet No'] || '-'}</td>
             <td>${r['Dosya No'] || '-'}</td>
             <td>${r['Dosya Açılış Tarihi'] || '-'}</td>
             <td>${r['Müşteri'] || '-'}</td>
+            <td>${r['İsim'] || '-'}</td>
+            <td>${r['Soyisim'] || '-'}</td>
             <td>${r['İl'] || '-'}</td>
             <td>${r['Teminat'] || '-'}</td>
             <td><span style="font-weight:600; color:#4B5563;">${localSeg || '-'}</span></td>
@@ -829,93 +838,132 @@ function drawCharts() {
 }
 
 function applyFilters() {
-    // Tab 1 Filters (Teslimatı Beklenen)
-    const f1Hizmet = toLowerTr(document.getElementById('filter1-hizmet')?.value || "");
-    const f1Dosya = toLowerTr(document.getElementById('filter1-dosya')?.value || "");
-    const f1Police = toLowerTr(document.getElementById('filter1-police')?.value || "");
-    const f1Isim = toLowerTr(document.getElementById('filter1-isim')?.value || "");
-    const f1Soyisim = toLowerTr(document.getElementById('filter1-soyisim')?.value || "");
-    const f1Musteri = document.getElementById('filter1-musteri')?.value || "";
-    const f1Il = document.getElementById('filter1-il')?.value || "";
-    const f1Teminat = document.getElementById('filter1-teminat')?.value || "";
+    // Dynamic key value getter — handles Turkish unicode mismatches from Google Sheets
+    function getRowVal(row, ...candidates) {
+        for (const c of candidates) {
+            const key = Object.keys(row).find(k => k === c || toLowerTr(k) === toLowerTr(c));
+            if (key !== undefined && row[key] !== undefined && row[key] !== null) return String(row[key]);
+        }
+        return '';
+    }
 
-    const filteredTab1 = teslimatiBeklenenData.filter(row => {
-        if (f1Hizmet && !toLowerTr(row['Hizmet No']).includes(f1Hizmet)) return false;
-        if (f1Dosya && !toLowerTr(row['Dosya No']).includes(f1Dosya)) return false;
-        if (f1Police && !toLowerTr(row['Poliçe No']).includes(f1Police)) return false;
-        if (f1Isim && !toLowerTr(row['İsim']).includes(f1Isim)) return false;
-        if (f1Soyisim && !toLowerTr(row['Soyisim']).includes(f1Soyisim)) return false;
-        if (f1Musteri && row['Müşteri'] !== f1Musteri) return false;
-        if (f1Il && row['İl'] !== f1Il) return false;
-        if (f1Teminat && row['Teminat'] !== f1Teminat) return false;
+    const fillCascadedSelect = (id, dataSet, fieldResolver, currentVal) => {
+        const set = new Set(dataSet.map(d => fieldResolver(d)).filter(Boolean));
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = '<option value="">Tümü</option>';
+        Array.from(set).sort((a,b)=>String(a).localeCompare(String(b),'tr')).forEach(val => {
+            const opt = document.createElement("option");
+            opt.value = val; opt.textContent = val;
+            if (val === currentVal) opt.selected = true;
+            el.appendChild(opt);
+        });
+    };
+
+    // === TAB 1: Teslimatı Beklenen ===
+    const f1Hizmet  = toLowerTr(document.getElementById('filter1-hizmet')?.value || '');
+    const f1Dosya   = toLowerTr(document.getElementById('filter1-dosya')?.value || '');
+    const f1Isim    = toLowerTr(document.getElementById('filter1-isim')?.value || '');
+    const f1Soyisim = toLowerTr(document.getElementById('filter1-soyisim')?.value || '');
+    const f1Musteri = document.getElementById('filter1-musteri')?.value || '';
+    const f1Il      = document.getElementById('filter1-il')?.value || '';
+    const f1Teminat = document.getElementById('filter1-teminat')?.value || '';
+
+    const getF1For = (skip) => teslimatiBeklenenData.filter(row => {
+        if (f1Hizmet  && !toLowerTr(getRowVal(row, 'Hizmet No')).includes(f1Hizmet))   return false;
+        if (f1Dosya   && !toLowerTr(getRowVal(row, 'Dosya No')).includes(f1Dosya))     return false;
+        if (f1Isim    && !toLowerTr(getRowVal(row, 'İsim', 'Isim')).includes(f1Isim))  return false;
+        if (f1Soyisim && !toLowerTr(getRowVal(row, 'Soyisim')).includes(f1Soyisim))   return false;
+        if (skip !== 'musteri' && f1Musteri && getRowVal(row, 'Müşteri', 'Musteri') !== f1Musteri) return false;
+        if (skip !== 'il'      && f1Il      && getRowVal(row, 'İl', 'Il') !== f1Il) return false;
+        if (skip !== 'teminat' && f1Teminat && getRowVal(row, 'Teminat') !== f1Teminat) return false;
         return true;
     });
-    renderTab1(filteredTab1);
 
-    // Tab 2 Filters (Kullanımı Devam Eden)
-    const f2Hizmet = toLowerTr(document.getElementById('filter2-hizmet')?.value || "");
-    const f2Dosya = toLowerTr(document.getElementById('filter2-dosya')?.value || "");
-    const f2Police = toLowerTr(document.getElementById('filter2-police')?.value || "");
-    const f2Isim = toLowerTr(document.getElementById('filter2-isim')?.value || "");
-    const f2Soyisim = toLowerTr(document.getElementById('filter2-soyisim')?.value || "");
-    const f2Musteri = document.getElementById('filter2-musteri')?.value || "";
-    const f2Il = document.getElementById('filter2-il')?.value || "";
-    const f2Teminat = document.getElementById('filter2-teminat')?.value || "";
-    const f2Segment = document.getElementById('filter2-segment')?.value || "";
+    fillCascadedSelect('filter1-musteri', getF1For('musteri'), r => getRowVal(r, 'Müşteri', 'Musteri'), f1Musteri);
+    fillCascadedSelect('filter1-il', getF1For('il'), r => getRowVal(r, 'İl', 'Il'), f1Il);
+    fillCascadedSelect('filter1-teminat', getF1For('teminat'), r => getRowVal(r, 'Teminat'), f1Teminat);
+    renderTab1(getF1For(''));
 
-    const filteredTab2 = kullanimiDevamEdenData.filter(row => {
-        if (f2Hizmet && !toLowerTr(row['Hizmet No']).includes(f2Hizmet)) return false;
-        if (f2Dosya && !toLowerTr(row['Dosya No']).includes(f2Dosya)) return false;
-        if (f2Police && !toLowerTr(row['Poliçe No']).includes(f2Police)) return false;
-        if (f2Isim && !toLowerTr(row['İsim']).includes(f2Isim)) return false;
-        if (f2Soyisim && !toLowerTr(row['Soyisim']).includes(f2Soyisim)) return false;
-        if (f2Musteri && row['Müşteri'] !== f2Musteri) return false;
-        if (f2Il && row['İl'] !== f2Il) return false;
-        if (f2Teminat && row['Teminat'] !== f2Teminat) return false;
-        const localSeg = localStorage.getItem('crosslink_segment_' + row['Dosya No']) || row['Segment'];
-        if (f2Segment && localSeg !== f2Segment) return false;
+    // === TAB 2: Kullanımı Devam Eden ===
+    const f2Hizmet  = toLowerTr(document.getElementById('filter2-hizmet')?.value || '');
+    const f2Dosya   = toLowerTr(document.getElementById('filter2-dosya')?.value || '');
+    const f2Isim    = toLowerTr(document.getElementById('filter2-isim')?.value || '');
+    const f2Soyisim = toLowerTr(document.getElementById('filter2-soyisim')?.value || '');
+    const f2Musteri = document.getElementById('filter2-musteri')?.value || '';
+    const f2Il      = document.getElementById('filter2-il')?.value || '';
+    const f2Teminat = document.getElementById('filter2-teminat')?.value || '';
+    const f2Segment = document.getElementById('filter2-segment')?.value || '';
+
+    const getF2For = (skip) => kullanimiDevamEdenData.filter(row => {
+        if (f2Hizmet  && !toLowerTr(getRowVal(row, 'Hizmet No')).includes(f2Hizmet))   return false;
+        if (f2Dosya   && !toLowerTr(getRowVal(row, 'Dosya No')).includes(f2Dosya))     return false;
+        if (f2Isim    && !toLowerTr(getRowVal(row, 'İsim', 'Isim')).includes(f2Isim))  return false;
+        if (f2Soyisim && !toLowerTr(getRowVal(row, 'Soyisim')).includes(f2Soyisim))   return false;
+        if (skip !== 'musteri' && f2Musteri && getRowVal(row, 'Müşteri', 'Musteri') !== f2Musteri) return false;
+        if (skip !== 'il'      && f2Il      && getRowVal(row, 'İl', 'Il') !== f2Il) return false;
+        if (skip !== 'teminat' && f2Teminat && getRowVal(row, 'Teminat') !== f2Teminat) return false;
+        const seg = localStorage.getItem('crosslink_segment_' + row['Dosya No']) || getRowVal(row, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti');
+        if (skip !== 'segment' && f2Segment && seg !== f2Segment) return false;
         return true;
     });
-    renderTab2(filteredTab2);
 
-    // Tab 3 Filters (Kullanımı Biten)
-    const f3Hizmet = toLowerTr(document.getElementById('filter3-hizmet')?.value || "");
-    const f3Dosya = toLowerTr(document.getElementById('filter3-dosya')?.value || "");
-    const f3Police = toLowerTr(document.getElementById('filter3-police')?.value || "");
-    const f3Isim = toLowerTr(document.getElementById('filter3-isim')?.value || "");
-    const f3Soyisim = toLowerTr(document.getElementById('filter3-soyisim')?.value || "");
-    const f3Musteri = document.getElementById('filter3-musteri')?.value || "";
-    const f3Il = document.getElementById('filter3-il')?.value || "";
-    const f3Teminat = document.getElementById('filter3-teminat')?.value || "";
-    const f3Segment = document.getElementById('filter3-segment')?.value || "";
+    fillCascadedSelect('filter2-musteri', getF2For('musteri'), r => getRowVal(r, 'Müşteri', 'Musteri'), f2Musteri);
+    fillCascadedSelect('filter2-il', getF2For('il'), r => getRowVal(r, 'İl', 'Il'), f2Il);
+    fillCascadedSelect('filter2-teminat', getF2For('teminat'), r => getRowVal(r, 'Teminat'), f2Teminat);
+    fillCascadedSelect('filter2-segment', getF2For('segment'), r => localStorage.getItem('crosslink_segment_' + r['Dosya No']) || getRowVal(r, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti'), f2Segment);
+    renderTab2(getF2For(''));
 
-    const filteredTab3 = kullanimiBitenData.filter(row => {
-        if (f3Hizmet && !toLowerTr(row['Hizmet No']).includes(f3Hizmet)) return false;
-        if (f3Dosya && !toLowerTr(row['Dosya No']).includes(f3Dosya)) return false;
-        if (f3Police && !toLowerTr(row['Poliçe No']).includes(f3Police)) return false;
-        if (f3Isim && !toLowerTr(row['İsim']).includes(f3Isim)) return false;
-        if (f3Soyisim && !toLowerTr(row['Soyisim']).includes(f3Soyisim)) return false;
-        if (f3Musteri && row['Müşteri'] !== f3Musteri) return false;
-        if (f3Il && row['İl'] !== f3Il) return false;
-        if (f3Teminat && row['Teminat'] !== f3Teminat) return false;
-        const localSeg = localStorage.getItem('crosslink_segment_' + row['Dosya No']) || row['Segment'];
-        if (f3Segment && localSeg !== f3Segment) return false;
+    // === TAB 3: Kullanımı Biten ===
+    const f3Hizmet  = toLowerTr(document.getElementById('filter3-hizmet')?.value || '');
+    const f3Dosya   = toLowerTr(document.getElementById('filter3-dosya')?.value || '');
+    const f3Isim    = toLowerTr(document.getElementById('filter3-isim')?.value || '');
+    const f3Soyisim = toLowerTr(document.getElementById('filter3-soyisim')?.value || '');
+    const f3Musteri = document.getElementById('filter3-musteri')?.value || '';
+    const f3Il      = document.getElementById('filter3-il')?.value || '';
+    const f3Teminat = document.getElementById('filter3-teminat')?.value || '';
+    const f3Segment = document.getElementById('filter3-segment')?.value || '';
+
+    const getF3For = (skip) => kullanimiBitenData.filter(row => {
+        if (f3Hizmet  && !toLowerTr(getRowVal(row, 'Hizmet No')).includes(f3Hizmet))   return false;
+        if (f3Dosya   && !toLowerTr(getRowVal(row, 'Dosya No')).includes(f3Dosya))     return false;
+        if (f3Isim    && !toLowerTr(getRowVal(row, 'İsim', 'Isim')).includes(f3Isim))  return false;
+        if (f3Soyisim && !toLowerTr(getRowVal(row, 'Soyisim')).includes(f3Soyisim))   return false;
+        if (skip !== 'musteri' && f3Musteri && getRowVal(row, 'Müşteri', 'Musteri') !== f3Musteri) return false;
+        if (skip !== 'il'      && f3Il      && getRowVal(row, 'İl', 'Il') !== f3Il) return false;
+        if (skip !== 'teminat' && f3Teminat && getRowVal(row, 'Teminat') !== f3Teminat) return false;
+        const seg = localStorage.getItem('crosslink_segment_' + row['Dosya No']) || getRowVal(row, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti');
+        if (skip !== 'segment' && f3Segment && seg !== f3Segment) return false;
         return true;
     });
-    renderTab3(filteredTab3);
+
+    fillCascadedSelect('filter3-musteri', getF3For('musteri'), r => getRowVal(r, 'Müşteri', 'Musteri'), f3Musteri);
+    fillCascadedSelect('filter3-il', getF3For('il'), r => getRowVal(r, 'İl', 'Il'), f3Il);
+    fillCascadedSelect('filter3-teminat', getF3For('teminat'), r => getRowVal(r, 'Teminat'), f3Teminat);
+    fillCascadedSelect('filter3-segment', getF3For('segment'), r => localStorage.getItem('crosslink_segment_' + r['Dosya No']) || getRowVal(r, 'Segment', 'İkame Araç Segmenti', 'Talep Edilen Araç Segmenti'), f3Segment);
+    renderTab3(getF3For(''));
 }
+
 function setupEventListeners() {
-    const filterInputs = document.querySelectorAll('.filter-input');
-    filterInputs.forEach(input => {
-        input.addEventListener('input', applyFilters);
-        input.addEventListener('change', applyFilters);
+    // Select all inputs and selects inside the filter rows dynamically instead of relying on a `.filter-input` class
+    const filterSelectors = [
+        '#teslimati-beklenen-section input', '#teslimati-beklenen-section select',
+        '#kullanimi-devam-eden-section input', '#kullanimi-devam-eden-section select',
+        '#kullanimi-biten-section input', '#kullanimi-biten-section select'
+    ];
+    
+    filterSelectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => {
+            el.addEventListener('input', applyFilters);
+            el.addEventListener('change', applyFilters);
+        });
     });
 
     const exportCsvBtn = document.getElementById("exportCsvBtn");
     if (exportCsvBtn) {
         exportCsvBtn.addEventListener("click", () => {
             if (kullanimiBitenData.length === 0 && kullanimiDevamEdenData.length === 0 && teslimatiBeklenenData.length === 0) {
-                alert("Aktarilacak veri bulunamadi.");
+                alert("Aktarılacak veri bulunamadı.");
                 return;
             }
             if (typeof XLSX !== 'undefined') {
@@ -925,16 +973,19 @@ function setupEventListeners() {
                 const today = new Date().toISOString().split('T')[0];
                 XLSX.writeFile(wb, "CrossLink_Hizmetler_" + today + ".xlsx");
             } else {
-                alert("Tablo aktarim kutuphanesi yuklenemedi.");
+                alert("Tablo aktarım kütüphanesi yüklenemedi.");
             }
         });
     }
 
     const btnSavePdf = document.getElementById('btnSavePdf');
     if (btnSavePdf) {
-        btnSavePdf.addEventListener('click', exportSupplierPDF);
+        btnSavePdf.addEventListener('click', () => {
+            window.print();
+        });
     }
 }
+
 
 function updateStatistics() {
     let deliveredCount = 0;
