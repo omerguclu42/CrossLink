@@ -230,7 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let completedData = [];
     let supplierPriorityData = {};
     let supplierTargetsData = {};
-    let supplierPricingData = [];
+    window.supplierPricingData = [];
 
     function toLowerTr(str) {
         if (!str) return "";
@@ -309,21 +309,27 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    window.pricingLoadStatus = "Pending...";
     async function loadPricingData() {
         try {
             const raw = await fetchJSONP(PRICING_URL);
-            supplierPricingData = parseGvizJSON(raw);
-            console.log("Supplier Pricing Map loaded:", supplierPricingData.length, "rows");
+            window.supplierPricingData = parseGvizJSON(raw);
+            window.pricingLoadStatus = "Loaded " + window.supplierPricingData.length;
+            console.log("Supplier Pricing Map loaded:", window.supplierPricingData.length, "rows");
         } catch(err) {
+            window.pricingLoadStatus = "Fail: " + (err ? err.message : "Unknown");
             console.error("Supplier pricing load error:", err);
         }
     }
 
-    // Auto-load on initialization
-    loadSupplierData();
-    loadTargetsData();
-    loadPricingData();
-    loadCompletedData();
+    // Auto-load on initialization - Serialized to prevent Google API 429 Rate Limits
+    async function bootSystem() {
+        await loadPricingData();
+        loadSupplierData();
+        loadTargetsData();
+        loadCompletedData();
+    }
+    bootSystem();
 
     // Badge'leri sayfa yüklenince hemen hesapla (sekmeye tıklanmadan)
     function updateAllBadgesFromLocalStorage() {
@@ -1116,21 +1122,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 let sysGunlukTutar = "Bilinmiyor";
                 let sysDoviz = "TL";
                 
-                if (supplierPricingData && supplierPricingData.length > 0) {
+                if (window.supplierPricingData && window.supplierPricingData.length > 0) {
                     const normSupName = normalizeForSearch(sup.name);
                     const isteneSegQuery = (isteneSegment || "").toLowerCase().trim();
                     const musteriQuery = (rowData['Müşteri'] || "").toLowerCase().trim();
                     const normMusteriQuery = normalizeForSearch(musteriQuery);
                     
                     // 1. Try Exact Match (Supplier + Customer)
-                    let matchedPricing = supplierPricingData.find(p => 
+                    let matchedPricing = window.supplierPricingData.find(p => 
                         normalizeForSearch(p['Tedarikçi']) === normSupName && 
                         normalizeForSearch(p['Müşteri']) === normMusteriQuery
                     );
                     
                     // 2. Fallback to 'Varsayılan'
                     if (!matchedPricing) {
-                         matchedPricing = supplierPricingData.find(p => 
+                         matchedPricing = window.supplierPricingData.find(p => 
                             normalizeForSearch(p['Tedarikçi']) === normSupName && 
                             normalizeForSearch(p['Müşteri']).includes("varsay")
                         );
@@ -1981,13 +1987,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 // Dynamic Pricing Calculation: Decrease price if provided segment is cheaper than requested segment
                 const isteneSegment = a.fullData['Talep Edilen Araç Segmenti'] || "";
-                if (segment && segment !== "-" && isteneSegment && segment !== isteneSegment && typeof supplierPricingData !== 'undefined') {
+                if (segment && segment !== "-" && isteneSegment && segment !== isteneSegment && typeof window.supplierPricingData !== 'undefined') {
                     const normSupName = normalizeForSearch(a.supplier);
                     const musteriQuery = (a.fullData['Müşteri'] || "").toLowerCase().trim();
                     const normMusteriQuery = normalizeForSearch(musteriQuery);
-                    let matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && normalizeForSearch(p['Müşteri']) === normMusteriQuery);
+                    let matchedPricing = window.supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && normalizeForSearch(p['Müşteri']) === normMusteriQuery);
                     if (!matchedPricing) {
-                        matchedPricing = supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && normalizeForSearch(p['Müşteri']).includes("varsay"));
+                        matchedPricing = window.supplierPricingData.find(p => normalizeForSearch(p['Tedarikçi']) === normSupName && normalizeForSearch(p['Müşteri']).includes("varsay"));
                     }
                     if (matchedPricing) {
                         const isteneCol = Object.keys(matchedPricing).find(k => k.toLowerCase().trim() === isteneSegment.toLowerCase().trim());
@@ -2856,19 +2862,25 @@ window.computeTutarsal = function(dosyaNo, rowData) {
         }
 
     let dropTutarText = '-';
+    let debugTrace = 'N/A';
     let dropKmText = rowData ? (rowData['Drop KM'] || rowData['Drop Kilometre'] || rowData['DropKm']) : null;
     let localDropKm = localStorage.getItem('crosslink_drop_km_' + dosyaNo);
     if (localDropKm) dropKmText = localDropKm;
     let dropKmNum = parseFloat(String(dropKmText || "").replace(',', '.')) || 0;
 
-    if (dropKmNum > 0 && typeof supplierPricingData !== 'undefined' && supplierPricingData.length > 0) {
+    if (dropKmNum > 0 && typeof window.supplierPricingData !== 'undefined' && window.supplierPricingData.length > 0) {
         let supplierName = rowData ? (rowData['Tedarikçi'] || rowData['Tedarikçi Adı']) : "";
         let musteriName = rowData ? rowData['Müşteri'] : "";
 
-        if (!supplierName) {
+        let dropRateNumFinal = 0;
+
+        if (!supplierName || !musteriName) {
             let assignments = JSON.parse(localStorage.getItem('crosslink_assignments') || '{}');
             let assigned = assignments[dosyaNo];
-            if (assigned) supplierName = assigned.supplier;
+            if (assigned) {
+                if (!supplierName) supplierName = assigned.supplier || "";
+                if (!musteriName && assigned.fullData) musteriName = assigned.fullData['Müşteri'] || "";
+            }
         }
 
         if (supplierName) {
@@ -2880,15 +2892,18 @@ window.computeTutarsal = function(dosyaNo, rowData) {
             const normSupName = localNorm(supplierName);
             const normMusteriQuery = localNorm(musteriName);
             
-            let match = supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']) === normMusteriQuery);
+            let match = window.supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']) === normMusteriQuery);
             if (!match) {
-                match = supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']).includes("varsay"));
+                match = window.supplierPricingData.find(p => localNorm(p['Tedarikçi']) === normSupName && localNorm(p['Müşteri']).includes("varsay"));
             }
+
+            debugTrace = `[Sup: ${supplierName}] [Cust: ${musteriName}] [Matched: ${match ? "YES" : "NO"}]`;
 
             const dropKey = match ? Object.keys(match).find(k => k.toLowerCase().trim() === 'drop') : null;
             if (match && dropKey && match[dropKey] !== undefined && match[dropKey] !== null) {
                 let dropRateText = match[dropKey].toString().replace(',', '.');
                 let dropRateNum = parseFloat(dropRateText) || 0;
+                dropRateNumFinal = dropRateNum;
                 if (dropRateNum > 0) {
                     let dt = dropKmNum * dropRateNum;
                     dropTutarText = new Intl.NumberFormat('tr-TR').format(dt) + ' ' + dovizText;
@@ -2908,6 +2923,7 @@ window.computeTutarsal = function(dosyaNo, rowData) {
         }
     } else if (dropKmNum > 0) {
         dropTutarText = "0 " + dovizText;
+        debugTrace = "PricingArray: " + (typeof window.supplierPricingData !== 'undefined' ? window.supplierPricingData.length : "N/A") + " | " + window.pricingLoadStatus;
     }
 
     return { 
@@ -2915,6 +2931,8 @@ window.computeTutarsal = function(dosyaNo, rowData) {
         gunBilgisi: gunBilgisiText, 
         toplamTutar: toplamTutarText, 
         dropTutar: dropTutarText,
+        dropRate: typeof dropRateNumFinal !== 'undefined' ? dropRateNumFinal : 0,
+        debugTrace: debugTrace,
         doviz: dovizText 
     };
 };
@@ -2935,7 +2953,7 @@ window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
     
     tutarBox.innerHTML = `
         <h4 class="modal-data-title" style="margin-bottom: 12px; font-size:1.1rem;">Tutarsal Veriler</h4>
-        <div class="modal-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+        <div class="modal-grid" style="grid-template-columns: repeat(6, 1fr);">
             <div class="modal-field">
                 <span class="modal-label">Günlük Tutar</span>
                 <div class="modal-value-box" style="color:#d97706; font-weight:700; font-size:1.1rem;">${fGunluk}</div>
@@ -2945,12 +2963,20 @@ window.populateTutarsalVeriler = function(dosyaNo, rowData, gridContainer) {
                 <div class="modal-value-box" style="font-weight:700; font-size:1.1rem;">${vals.gunBilgisi || '-'}</div>
             </div>
             <div class="modal-field">
+                <span class="modal-label">Drop Çarpanı</span>
+                <div class="modal-value-box" style="color:#6b7280; font-weight:700; font-size:1.1rem;">${vals.dropRate || '0'}</div>
+            </div>
+            <div class="modal-field">
                 <span class="modal-label">Drop Tutarı</span>
                 <div class="modal-value-box" style="color:#ef4444; font-weight:700; font-size:1.1rem;">${vals.dropTutar || '-'}</div>
             </div>
             <div class="modal-field">
                 <span class="modal-label">Toplam İkame Tutarı</span>
                 <div class="modal-value-box" style="color:#16a34a; font-weight:700; font-size:1.1rem;">${fToplam}</div>
+            </div>
+            <div class="modal-field">
+                <span class="modal-label">Sistem Debug (Hata Takibi)</span>
+                <div class="modal-value-box" style="color:#2563eb; font-weight:700; font-size:0.8rem; overflow:hidden;">${vals.debugTrace}</div>
             </div>
         </div>
     `;
