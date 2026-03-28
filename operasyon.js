@@ -2948,7 +2948,16 @@
         ["tedarikci", "yil", "ay", "musteri", "il", "teminat", "segment"].forEach(filterKey => {
             const sel = document.getElementById(`filter-report-${filterKey}`);
             if (sel) {
-                const uniqueVals = [...new Set(window.allReportData.map(item => item[filterKey]))].filter(val => val && val !== "Bilinmiyor" && val !== "Atanmadı").sort();
+                let uniqueVals = [...new Set(window.allReportData.map(item => item[filterKey]))].filter(val => val && val !== "Bilinmiyor" && val !== "Atanmadı");
+                if (filterKey === "ay") {
+                    const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+                    uniqueVals.sort((a, b) => aylar.indexOf(a) - aylar.indexOf(b));
+                } else if (filterKey === "yil") {
+                    uniqueVals.sort((a,b) => b - a);
+                } else {
+                    uniqueVals.sort();
+                }
+
                 const currentVal = sel.value;
                 const baseTitle = sel.options[0] ? (sel.options[0].text.split('Tüm ')[1] || 'Seçenekler') : 'Seçenekler';
                 sel.innerHTML = `<option value="">Tüm ${baseTitle}</option>`;
@@ -2998,7 +3007,15 @@
         Object.keys(filters).forEach(k => {
             const sel = document.getElementById(`filter-report-${k}`);
             if (sel && !filters[k]) {
-                const uniqueVals = [...new Set(filtered.map(item => item[k]))].filter(val => val && val !== "Bilinmiyor" && val !== "Atanmadı").sort();
+                let uniqueVals = [...new Set(filtered.map(item => item[k]))].filter(val => val && val !== "Bilinmiyor" && val !== "Atanmadı");
+                if (k === "ay") {
+                    const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+                    uniqueVals.sort((a, b) => aylar.indexOf(a) - aylar.indexOf(b));
+                } else if (k === "yil") {
+                    uniqueVals.sort((a,b) => b - a);
+                } else {
+                    uniqueVals.sort();
+                }
                 const baseTitle = sel.options[0] ? (sel.options[0].text.split('Tüm ')[1] || 'Seçenekler') : 'Seçenekler';
                 sel.innerHTML = `<option value="">Tüm ${baseTitle}</option>`;
                 uniqueVals.forEach(v => sel.add(new Option(v, v)));
@@ -3041,12 +3058,11 @@
 
         function msToFormat(ms) {
             if (ms <= 0) return "00:00:00";
-            let totalMin = Math.floor(ms / 60000);
-            let d = Math.floor(totalMin / 1440);
-            let h = Math.floor((totalMin % 1440) / 60);
-            let m = totalMin % 60;
-            if (d > 0) return `${d}g ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`;
+            let totalSec = Math.floor(ms / 1000);
+            let h = Math.floor(totalSec / 3600);
+            let m = Math.floor((totalSec % 3600) / 60);
+            let s = totalSec % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
         }
 
         if(document.getElementById("kpi-1-bekleyen")) document.getElementById("kpi-1-bekleyen").textContent = pendingCount;
@@ -3054,14 +3070,28 @@
         if(document.getElementById("kpi-3-devam")) document.getElementById("kpi-3-devam").textContent = ongoingCount;
         if(document.getElementById("kpi-4-biten")) document.getElementById("kpi-4-biten").textContent = completedCount;
 
-        if(document.getElementById("kpi-5-atanma")) document.getElementById("kpi-5-atanma").textContent = msToFormat(atanmaAdet > 0 ? (totalAtanmaMs/atanmaAdet) : 0);
-        if(document.getElementById("kpi-6-operasyon-teslim")) document.getElementById("kpi-6-operasyon-teslim").textContent = msToFormat(opTeslimAdet > 0 ? (totalOpTeslimMs/opTeslimAdet) : 0);
-        if(document.getElementById("kpi-7-tedarikci-teslim")) document.getElementById("kpi-7-tedarikci-teslim").textContent = msToFormat(tedTeslimAdet > 0 ? (totalTedTeslimMs/tedTeslimAdet) : 0);
+        const atanmaAvgMs = atanmaAdet > 0 ? (totalAtanmaMs/atanmaAdet) : 0;
+        const opTeslimAvgMs = opTeslimAdet > 0 ? (totalOpTeslimMs/opTeslimAdet) : 0;
+        const tedTeslimAvgMs = tedTeslimAdet > 0 ? (totalTedTeslimMs/tedTeslimAdet) : 0;
+
+        if(document.getElementById("kpi-5-atanma")) document.getElementById("kpi-5-atanma").textContent = msToFormat(atanmaAvgMs);
+        
+        const kpi6 = document.getElementById("kpi-6-operasyon-teslim");
+        if(kpi6) {
+            kpi6.textContent = msToFormat(opTeslimAvgMs);
+            kpi6.style.color = opTeslimAvgMs > 86400000 ? "#ef4444" : "#10b981";
+        }
+        
+        const kpi7 = document.getElementById("kpi-7-tedarikci-teslim");
+        if(kpi7) {
+            kpi7.textContent = msToFormat(tedTeslimAvgMs);
+            kpi7.style.color = tedTeslimAvgMs > 86400000 ? "#ef4444" : "#10b981";
+        }
 
         if(document.getElementById("kpi-8-toplam-gun")) document.getElementById("kpi-8-toplam-gun").textContent = sumGun;
         if(document.getElementById("kpi-9-ort-gun")) document.getElementById("kpi-9-ort-gun").textContent = ortGun.toFixed(1);
-        if(document.getElementById("kpi-10-toplam-tutar")) document.getElementById("kpi-10-toplam-tutar").textContent = new Intl.NumberFormat('tr-TR').format(sumTutar) + " TL";
-        if(document.getElementById("kpi-11-ort-tutar")) document.getElementById("kpi-11-ort-tutar").textContent = new Intl.NumberFormat('tr-TR').format(ortTutar) + " TL";
+        if(document.getElementById("kpi-10-toplam-tutar")) document.getElementById("kpi-10-toplam-tutar").textContent = new Intl.NumberFormat('tr-TR').format(sumTutar) + " ₺";
+        if(document.getElementById("kpi-11-ort-tutar")) document.getElementById("kpi-11-ort-tutar").textContent = new Intl.NumberFormat('tr-TR').format(ortTutar) + " ₺";
     };
 });
 
