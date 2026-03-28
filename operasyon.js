@@ -2886,7 +2886,10 @@
             let ay = tarihObj.getFullYear() > 2000 ? aylar[tarihObj.getMonth()] : "Bilinmiyor";
             
             let acilisMs = tarihObj.getTime();
-            let atanmaMs = r['Atanma Tarihi'] ? parseRaporDate(r['Atanma Tarihi']).getTime() : 0;
+            let dNo = r['Dosya No'] || (a ? a.dosyaNo : null);
+            let atamaLocal = localStorage.getItem("atama_time_" + dNo);
+            let atanmaStr = r['Atanma Tarihi'] || r['Atama Tarihi'] || atamaLocal;
+            let atanmaMs = atanmaStr ? parseRaporDate(atanmaStr).getTime() : 0;
             let teslimMs = (r['Araç Teslim Tarihi'] || r['Teslimat Tarihi']) ? parseRaporDate(r['Araç Teslim Tarihi'] || r['Teslimat Tarihi']).getTime() : 0;
             
             allItems.push({
@@ -2929,13 +2932,24 @@
 
     function parseRaporDate(dStr) {
         if (!dStr) return new Date(0);
-        let parts = dStr.split(/[\s.:\/,-]/);
+        let datePart = dStr;
+        let timePart = "00:00:00";
+        if (dStr.includes(" ")) {
+            const split = dStr.split(" ");
+            datePart = split[0];
+            timePart = split[1] || "00:00:00";
+        }
+        let parts = datePart.split(/[\s.:\/,-]/);
         if (parts.length >= 3) {
             let day = parseInt(parts[0], 10);
             let month = parseInt(parts[1], 10) - 1;
             let year = parseInt(parts[2], 10);
             if (year < 100) year += 2000;
-            let d = new Date(year, month, day);
+            let tParts = timePart.split(":");
+            let hour = parseInt(tParts[0], 10) || 0;
+            let min = parseInt(tParts[1], 10) || 0;
+            let sec = parseInt(tParts[2], 10) || 0;
+            let d = new Date(year, month, day, hour, min, sec);
             if (isNaN(d.getTime())) return new Date(0);
             return d;
         }
@@ -3088,10 +3102,81 @@
             kpi7.style.color = tedTeslimAvgMs > 86400000 ? "#ef4444" : "#10b981";
         }
 
-        if(document.getElementById("kpi-8-toplam-gun")) document.getElementById("kpi-8-toplam-gun").textContent = sumGun;
+        if(document.getElementById("kpi-8-toplam-gun")) document.getElementById("kpi-8-toplam-gun").textContent = new Intl.NumberFormat('tr-TR').format(sumGun);
         if(document.getElementById("kpi-9-ort-gun")) document.getElementById("kpi-9-ort-gun").textContent = ortGun.toFixed(1);
         if(document.getElementById("kpi-10-toplam-tutar")) document.getElementById("kpi-10-toplam-tutar").textContent = new Intl.NumberFormat('tr-TR').format(sumTutar) + " ₺";
         if(document.getElementById("kpi-11-ort-tutar")) document.getElementById("kpi-11-ort-tutar").textContent = new Intl.NumberFormat('tr-TR').format(ortTutar) + " ₺";
+        // Chart Updates
+        if (window.reportsCharts.monthly) { window.reportsCharts.monthly.destroy(); }
+        if (window.reportsCharts.daily) { window.reportsCharts.daily.destroy(); }
+        
+        const monthlyCtx = document.getElementById("monthlyAnalysisChart");
+        const dailyCtx = document.getElementById("dailyAnalysisChart");
+        
+        if (monthlyCtx && dailyCtx) {
+            const monthMap = {};
+            const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+            
+            filtered.forEach(f => {
+                if (!f.ay || f.type !== "Completed") return;
+                if (!monthMap[f.ay]) monthMap[f.ay] = { gun: 0, tutar: 0 };
+                monthMap[f.ay].gun += f.ikameGunu;
+                monthMap[f.ay].tutar += f.toplamMaliyet;
+            });
+            
+            const mLabels = aylar.filter(a => monthMap[a]);
+            const mGunData = mLabels.map(a => monthMap[a].gun);
+            const mTutarData = mLabels.map(a => monthMap[a].tutar);
+            
+            window.reportsCharts.monthly = new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: mLabels,
+                    datasets: [
+                        { label: 'İkame Gün', data: mGunData, backgroundColor: '#3b82f6', yAxisID: 'y' },
+                        { label: 'İkame Tutar (₺)', data: mTutarData, type: 'line', borderColor: '#f59e0b', backgroundColor: '#f59e0b', yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', position: 'left', beginAtZero: true },
+                        y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+            
+            const dayMap = {};
+            filtered.forEach(f => {
+                if(f.acilisMs && f.atanmaMs && f.atanmaMs >= f.acilisMs) {
+                    const dStr = f.tarihObj.toLocaleDateString("tr-TR");
+                    if (!dayMap[dStr]) dayMap[dStr] = { ms: 0, count: 0 };
+                    dayMap[dStr].ms += (f.atanmaMs - f.acilisMs);
+                    dayMap[dStr].count++;
+                }
+            });
+            
+            const dLabels = Object.keys(dayMap).sort((a,b) => {
+                const partsA = a.split("."); const partsB = b.split(".");
+                return new Date(partsA[2], partsA[1]-1, partsA[0]) - new Date(partsB[2], partsB[1]-1, partsB[0]);
+            }).slice(-15);
+            
+            const dPerfData = dLabels.map(d => (dayMap[d].ms / dayMap[d].count / (1000 * 60 * 60)).toFixed(2));
+            
+            window.reportsCharts.daily = new Chart(dailyCtx, {
+                type: 'line',
+                data: {
+                    labels: dLabels,
+                    datasets: [{ label: 'Ortalama Atama Süresi (Saat)', data: dPerfData, borderColor: '#ec4899', backgroundColor: 'rgba(236, 72, 153, 0.1)', fill: true, tension: 0.3 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
     };
 });
 
