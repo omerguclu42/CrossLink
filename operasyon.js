@@ -2878,79 +2878,49 @@
 
     window.buildReportsDashboard = function() {
         let allItems = [];
+        const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
-        // 1. Bekleyen Dosyalar
-        if (pendingData) {
-            pendingData.forEach(r => {
-                allItems.push({
-                    type: "Pending",
-                    dosyaNo: r['Dosya No'],
-                    musteri: r['Müşteri'] || "Bilinmiyor",
-                    tedarikci: r['Tedarikçi'] || r['Tedarikçi Adı'] || "Atanmadı",
-                    segment: r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor",
-                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi']),
-                    toplamMaliyet: 0,
-                    ikameGunu: 0
-                });
+        function processRow(r, type, dayStr, maliyet, a) {
+            let tarihObj = parseRaporDate(r['Dosya Açılış Tarihi'] || (a ? a.tarih : null));
+            let yil = tarihObj.getFullYear() > 2000 ? tarihObj.getFullYear().toString() : "Bilinmiyor";
+            let ay = tarihObj.getFullYear() > 2000 ? aylar[tarihObj.getMonth()] : "Bilinmiyor";
+            
+            let acilisMs = tarihObj.getTime();
+            let atanmaMs = r['Atanma Tarihi'] ? parseRaporDate(r['Atanma Tarihi']).getTime() : 0;
+            let teslimMs = (r['Araç Teslim Tarihi'] || r['Teslimat Tarihi']) ? parseRaporDate(r['Araç Teslim Tarihi'] || r['Teslimat Tarihi']).getTime() : 0;
+            
+            allItems.push({
+                type: type,
+                dosyaNo: r['Dosya No'] || (a ? a.dosyaNo : null),
+                musteri: r['Müşteri'] || "Bilinmiyor",
+                tedarikci: r['Tedarikçi'] || r['Tedarikçi Adı'] || (a ? a.supplier : null) || "Atanmadı",
+                segment: r['İkame Araç Segmenti'] || r['Talep Edilen Araç Segmenti'] || r['Segment'] || (a && a.plakaInfo ? a.plakaInfo.segment : "Bilinmiyor"),
+                il: r['İl'] || "Bilinmiyor",
+                teminat: r['Teminat'] || "Bilinmiyor",
+                yil: yil,
+                ay: ay,
+                tarihObj: tarihObj,
+                acilisMs: acilisMs > 0 ? acilisMs : null,
+                atanmaMs: atanmaMs > 0 ? atanmaMs : null,
+                teslimMs: teslimMs > 0 ? teslimMs : null,
+                toplamMaliyet: maliyet || 0,
+                ikameGunu: parseInt(dayStr) || 0
             });
         }
 
-        // 2. Teslimatı Bekleyenler
-        if (deliveryData) {
-            deliveryData.forEach(r => {
-                allItems.push({
-                    type: "Delivery",
-                    dosyaNo: r['Dosya No'],
-                    musteri: r['Müşteri'] || "Bilinmiyor",
-                    tedarikci: r['Tedarikçi'] || r['Tedarikçi Adı'] || "Atanmadı",
-                    segment: r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor",
-                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi']),
-                    toplamMaliyet: 0,
-                    ikameGunu: 0
-                });
-            });
-        }
-
-        // 3. Kullanımı Devam Eden Hizmetler (Aktif)
-        if (activeRentalsData) {
-            activeRentalsData.forEach(a => {
-                let r = a.fullData || {};
-                let vars = window.computeTutarsal(a.dosyaNo, r);
-                let maliyet = parseFloat(String(vars.toplamTutar).replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
-                let dayStr = vars.gunBilgisi ? String(vars.gunBilgisi).replace(/[^0-9]/g, "") : "0";
-                
-                allItems.push({
-                    type: "Ongoing",
-                    dosyaNo: a.dosyaNo,
-                    musteri: r['Müşteri'] || "Bilinmiyor",
-                    tedarikci: a.supplier || "Atanmadı",
-                    segment: a.plakaInfo ? a.plakaInfo.segment : (r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor"),
-                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi'] || a.tarih),
-                    toplamMaliyet: maliyet,
-                    ikameGunu: parseInt(dayStr) || 0
-                });
-            });
-        }
-
-        // 4. Kullanımı Biten Hizmetler
-        if (completedData) {
-            completedData.forEach(r => {
-                let vars = window.computeTutarsal(r['Dosya No'], r);
-                let maliyet = parseFloat(String(vars.toplamTutar).replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
-                let dayStr = vars.gunBilgisi ? String(vars.gunBilgisi).replace(/[^0-9]/g, "") : "0";
-                
-                allItems.push({
-                    type: "Completed",
-                    dosyaNo: r['Dosya No'],
-                    musteri: r['Müşteri'] || "Bilinmiyor",
-                    tedarikci: r['Tedarikçi'] || "Atanmadı",
-                    segment: r['İkame Araç Segmenti'] || r['Talep Edilen Araç Segmenti'] || r['Segment'] || "Bilinmiyor",
-                    tarihObj: parseRaporDate(r['Dosya Açılış Tarihi']),
-                    toplamMaliyet: maliyet,
-                    ikameGunu: parseInt(dayStr) || 0
-                });
-            });
-        }
+        if (pendingData) pendingData.forEach(r => processRow(r, "Pending", "0", 0));
+        if (deliveryData) deliveryData.forEach(r => processRow(r, "Delivery", "0", 0));
+        if (activeRentalsData) activeRentalsData.forEach(a => {
+            let r = a.fullData || {};
+            let vars = window.computeTutarsal(a.dosyaNo, r);
+            let maliyet = parseFloat(String(vars.toplamTutar).replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
+            processRow(r, "Ongoing", String(vars.gunBilgisi).replace(/[^0-9]/g, ""), maliyet, a);
+        });
+        if (completedData) completedData.forEach(r => {
+            let vars = window.computeTutarsal(r['Dosya No'], r);
+            let maliyet = parseFloat(String(vars.toplamTutar).replace(/₺|€|\$|TL/gi, "").replace(/\./g, "").replace(",", ".").trim()) || 0;
+            processRow(r, "Completed", String(vars.gunBilgisi).replace(/[^0-9]/g, ""), maliyet);
+        });
         
         window.allReportData = allItems;
         populateReportFilters();
@@ -2974,169 +2944,125 @@
 
     function populateReportFilters() {
         if (!window.allReportData) return;
-        const suppliers = [...new Set(window.allReportData.map(item => item.tedarikci))].filter(Boolean).filter(s => s !== "Atanmadı").sort();
-        const customers = [...new Set(window.allReportData.map(item => item.musteri))].filter(Boolean).filter(c => c !== "Bilinmiyor").sort();
         
-        const selTedarikci = document.getElementById("filter-report-tedarikci");
-        if (selTedarikci && selTedarikci.options.length <= 1) {
-            suppliers.forEach(s => selTedarikci.add(new Option(s, s)));
-        }
-        
-        const selMusteri = document.getElementById("filter-report-musteri");
-        if (selMusteri && selMusteri.options.length <= 1) {
-            customers.forEach(s => selMusteri.add(new Option(s, s)));
+        ["tedarikci", "yil", "ay", "musteri", "il", "teminat", "segment"].forEach(filterKey => {
+            const sel = document.getElementById(`filter-report-${filterKey}`);
+            if (sel) {
+                const uniqueVals = [...new Set(window.allReportData.map(item => item[filterKey]))].filter(val => val && val !== "Bilinmiyor" && val !== "Atanmadı").sort();
+                const currentVal = sel.value;
+                const baseTitle = sel.options[0] ? (sel.options[0].text.split('Tüm ')[1] || 'Seçenekler') : 'Seçenekler';
+                sel.innerHTML = `<option value="">Tüm ${baseTitle}</option>`;
+                uniqueVals.forEach(v => sel.add(new Option(v, v)));
+                sel.value = currentVal;
+                
+                sel.removeEventListener('change', window.applyReportFiltersAndDraw);
+                sel.addEventListener('change', window.applyReportFiltersAndDraw);
+            }
+        });
+
+        const resetBtn = document.getElementById("btnResetFilters");
+        if(resetBtn) {
+            const newResetBtn = resetBtn.cloneNode(true);
+            resetBtn.parentNode.replaceChild(newResetBtn, resetBtn);
+            
+            newResetBtn.addEventListener("click", () => {
+                ["tedarikci", "yil", "ay", "musteri", "il", "teminat", "segment"].forEach(k => {
+                    const sel = document.getElementById(`filter-report-${k}`);
+                    if(sel) sel.value = "";
+                });
+                populateReportFilters();
+                window.applyReportFiltersAndDraw();
+            });
         }
     }
 
     window.applyReportFiltersAndDraw = function() {
         let filtered = window.allReportData || [];
         
-        const startDate = document.getElementById("filter-report-start").value;
-        const endDate = document.getElementById("filter-report-end").value;
-        const tedarikci = document.getElementById("filter-report-tedarikci").value;
-        const musteri = document.getElementById("filter-report-musteri").value;
-        const segment = document.getElementById("filter-report-segment").value;
-        
-        if (startDate) {
-            const startD = new Date(startDate);
-            startD.setHours(0,0,0,0);
-            filtered = filtered.filter(item => item.tarihObj >= startD);
-        }
-        if (endDate) {
-            const endD = new Date(endDate);
-            endD.setHours(23,59,59,999);
-            filtered = filtered.filter(item => item.tarihObj <= endD);
-        }
-        if (tedarikci) {
-            filtered = filtered.filter(item => item.tedarikci === tedarikci);
-        }
-        if (musteri) {
-            filtered = filtered.filter(item => item.musteri === musteri);
-        }
-        if (segment && segment !== "") {
-            filtered = filtered.filter(item => item.segment.toLowerCase().includes(segment.toLowerCase()));
-        }
-        
-        const totalFiles = filtered.length;
-        const activeRentals = filtered.filter(f => f.type === "Ongoing").length;
-        let totalCost = 0;
-        let totalDays = 0;
-        let filesWithDays = 0;
-        
-        filtered.forEach(f => {
-            totalCost += f.toplamMaliyet;
-            if (f.ikameGunu > 0) {
-                totalDays += f.ikameGunu;
-                filesWithDays++;
+        const filters = {
+            tedarikci: document.getElementById("filter-report-tedarikci")?.value,
+            yil: document.getElementById("filter-report-yil")?.value,
+            ay: document.getElementById("filter-report-ay")?.value,
+            musteri: document.getElementById("filter-report-musteri")?.value,
+            il: document.getElementById("filter-report-il")?.value,
+            teminat: document.getElementById("filter-report-teminat")?.value,
+            segment: document.getElementById("filter-report-segment")?.value
+        };
+
+        Object.keys(filters).forEach(k => {
+            if (filters[k]) {
+                filtered = filtered.filter(item => item[k] === filters[k]);
             }
         });
-        
-        const avgDuration = filesWithDays > 0 ? (totalDays / filesWithDays).toFixed(1) : 0;
-        
-        const fCostEl = document.getElementById("kpi-total-cost");
-        const fTotalEl = document.getElementById("kpi-total-files");
-        const fActiveEl = document.getElementById("kpi-active-rentals");
-        const fAvgEl = document.getElementById("kpi-avg-duration");
-        
-        if(fTotalEl) fTotalEl.textContent = totalFiles;
-        if(fActiveEl) fActiveEl.textContent = activeRentals;
-        if(fCostEl) fCostEl.textContent = new Intl.NumberFormat('tr-TR').format(totalCost) + ' ₺';
-        if(fAvgEl) fAvgEl.textContent = avgDuration + ' Gün';
-        
-        drawReportCharts(filtered);
+
+        Object.keys(filters).forEach(k => {
+            const sel = document.getElementById(`filter-report-${k}`);
+            if (sel && !filters[k]) {
+                const uniqueVals = [...new Set(filtered.map(item => item[k]))].filter(val => val && val !== "Bilinmiyor" && val !== "Atanmadı").sort();
+                const baseTitle = sel.options[0] ? (sel.options[0].text.split('Tüm ')[1] || 'Seçenekler') : 'Seçenekler';
+                sel.innerHTML = `<option value="">Tüm ${baseTitle}</option>`;
+                uniqueVals.forEach(v => sel.add(new Option(v, v)));
+            }
+        });
+
+        const pendingCount = filtered.filter(f => f.type === "Pending").length;
+        const deliveryCount = filtered.filter(f => f.type === "Delivery").length;
+        const ongoingCount = filtered.filter(f => f.type === "Ongoing").length;
+        const compFilter = filtered.filter(f => f.type === "Completed");
+        const completedCount = compFilter.length;
+
+        let totalAtanmaMs = 0, atanmaAdet = 0;
+        let totalOpTeslimMs = 0, opTeslimAdet = 0;
+        let totalTedTeslimMs = 0, tedTeslimAdet = 0;
+
+        filtered.forEach(f => {
+            if (f.acilisMs && f.atanmaMs && f.atanmaMs >= f.acilisMs) {
+                totalAtanmaMs += (f.atanmaMs - f.acilisMs);
+                atanmaAdet++;
+            }
+            if (f.acilisMs && f.teslimMs && f.teslimMs >= f.acilisMs) {
+                totalOpTeslimMs += (f.teslimMs - f.acilisMs);
+                opTeslimAdet++;
+            }
+            if (f.atanmaMs && f.teslimMs && f.teslimMs >= f.atanmaMs) {
+                totalTedTeslimMs += (f.teslimMs - f.atanmaMs);
+                tedTeslimAdet++;
+            }
+        });
+
+        let sumGun = 0, sumTutar = 0;
+        compFilter.forEach(f => {
+            sumGun += f.ikameGunu;
+            sumTutar += f.toplamMaliyet;
+        });
+
+        const ortGun = completedCount > 0 ? (sumGun / completedCount) : 0;
+        const ortTutar = completedCount > 0 ? (sumTutar / completedCount) : 0;
+
+        function msToFormat(ms) {
+            if (ms <= 0) return "00:00:00";
+            let totalMin = Math.floor(ms / 60000);
+            let d = Math.floor(totalMin / 1440);
+            let h = Math.floor((totalMin % 1440) / 60);
+            let m = totalMin % 60;
+            if (d > 0) return `${d}g ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`;
+        }
+
+        if(document.getElementById("kpi-1-bekleyen")) document.getElementById("kpi-1-bekleyen").textContent = pendingCount;
+        if(document.getElementById("kpi-2-teslimat")) document.getElementById("kpi-2-teslimat").textContent = deliveryCount;
+        if(document.getElementById("kpi-3-devam")) document.getElementById("kpi-3-devam").textContent = ongoingCount;
+        if(document.getElementById("kpi-4-biten")) document.getElementById("kpi-4-biten").textContent = completedCount;
+
+        if(document.getElementById("kpi-5-atanma")) document.getElementById("kpi-5-atanma").textContent = msToFormat(atanmaAdet > 0 ? (totalAtanmaMs/atanmaAdet) : 0);
+        if(document.getElementById("kpi-6-operasyon-teslim")) document.getElementById("kpi-6-operasyon-teslim").textContent = msToFormat(opTeslimAdet > 0 ? (totalOpTeslimMs/opTeslimAdet) : 0);
+        if(document.getElementById("kpi-7-tedarikci-teslim")) document.getElementById("kpi-7-tedarikci-teslim").textContent = msToFormat(tedTeslimAdet > 0 ? (totalTedTeslimMs/tedTeslimAdet) : 0);
+
+        if(document.getElementById("kpi-8-toplam-gun")) document.getElementById("kpi-8-toplam-gun").textContent = sumGun;
+        if(document.getElementById("kpi-9-ort-gun")) document.getElementById("kpi-9-ort-gun").textContent = ortGun.toFixed(1);
+        if(document.getElementById("kpi-10-toplam-tutar")) document.getElementById("kpi-10-toplam-tutar").textContent = new Intl.NumberFormat('tr-TR').format(sumTutar) + " TL";
+        if(document.getElementById("kpi-11-ort-tutar")) document.getElementById("kpi-11-ort-tutar").textContent = new Intl.NumberFormat('tr-TR').format(ortTutar) + " TL";
     };
-
-    function drawReportCharts(data) {
-        if (typeof Chart === 'undefined') return;
-        
-        // 1. Line Chart (Timeline)
-        const timelineMap = {};
-        data.forEach(item => {
-            if (item.tarihObj.getTime() === 0) return;
-            let dateKey = String(item.tarihObj.getDate()).padStart(2, '0') + '.' + String(item.tarihObj.getMonth() + 1).padStart(2, '0');
-            timelineMap[dateKey] = (timelineMap[dateKey] || 0) + 1;
-        });
-        
-        let sortedDates = Object.keys(timelineMap).sort((a,b) => {
-            let pA = a.split('.'); let pB = b.split('.');
-            let moA = parseInt(pA[1]), dyA = parseInt(pA[0]);
-            let moB = parseInt(pB[1]), dyB = parseInt(pB[0]);
-            if (moA !== moB) return moA - moB;
-            return dyA - dyB;
-        });
-
-        if (sortedDates.length > 30) sortedDates = sortedDates.slice(sortedDates.length - 30);
-        const timelineVals = sortedDates.map(k => timelineMap[k]);
-        
-        if (window.reportsCharts.timeline) window.reportsCharts.timeline.destroy();
-        const ctxTime = document.getElementById("chart-timeline");
-        if (ctxTime) {
-            window.reportsCharts.timeline = new Chart(ctxTime.getContext("2d"), {
-                type: 'line',
-                data: { labels: sortedDates, datasets: [{ label: 'Açılan Dosya (Adet)', data: timelineVals, borderColor: '#4338CA', backgroundColor: 'rgba(67, 56, 202, 0.1)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-        }
-        
-        // 2. Bar Chart (Supplier Distribution)
-        const supplierMap = {};
-        data.forEach(item => {
-            let s = item.tedarikci;
-            if (s === "Atanmadı") return;
-            if (!supplierMap[s]) supplierMap[s] = { count: 0, cost: 0 };
-            supplierMap[s].count++;
-            supplierMap[s].cost += item.toplamMaliyet;
-        });
-        
-        const suppLabels = Object.keys(supplierMap).sort((a,b) => supplierMap[b].count - supplierMap[a].count).slice(0, 15);
-        const suppCounts = suppLabels.map(k => supplierMap[k].count);
-        const suppCosts = suppLabels.map(k => supplierMap[k].cost);
-        
-        if (window.reportsCharts.supplier) window.reportsCharts.supplier.destroy();
-        const ctxSupp = document.getElementById("chart-supplier-bar");
-        if (ctxSupp) {
-            window.reportsCharts.supplier = new Chart(ctxSupp.getContext("2d"), {
-                type: 'bar',
-                data: {
-                    labels: suppLabels,
-                    datasets: [
-                        { label: 'Tahmini Maliyet Yükü (₺)', data: suppCosts, backgroundColor: '#EF4444', yAxisID: 'y1', borderRadius: 4 },
-                        { label: 'Toplam Hizmet Edilen Dosya', data: suppCounts, backgroundColor: '#3B82F6', yAxisID: 'y', borderRadius: 4 }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { type: 'linear', position: 'left', beginAtZero: true }, y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } } }
-            });
-        }
-
-        // 3. Doughnut (Customer Pie)
-        const custMap = {};
-        data.forEach(item => {
-            let c = item.musteri;
-            if (c === "Bilinmiyor") return;
-            custMap[c] = (custMap[c] || 0) + 1;
-        });
-        
-        const custLabels = Object.keys(custMap).sort((a,b) => custMap[b] - custMap[a]).slice(0, 8);
-        const custVals = custLabels.map(k => custMap[k]);
-        
-        if (window.reportsCharts.customer) window.reportsCharts.customer.destroy();
-        const ctxCust = document.getElementById("chart-customer-pie");
-        const pieColors = ['#4338CA', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#06B6D4'];
-        if (ctxCust) {
-            window.reportsCharts.customer = new Chart(ctxCust.getContext("2d"), {
-                type: 'doughnut',
-                data: { labels: custLabels, datasets: [{ data: custVals, backgroundColor: pieColors, borderWidth: 1 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, cutout: '65%' }
-            });
-        }
-    }
-
-    const btnRefreshReports = document.getElementById("btnRefreshReports");
-    if(btnRefreshReports) btnRefreshReports.addEventListener("click", () => window.buildReportsDashboard());
-    
-    const btnApplyFilters = document.getElementById("btnApplyReportFilters");
-    if(btnApplyFilters) btnApplyFilters.addEventListener("click", () => window.applyReportFiltersAndDraw());
-
 });
 
 // ==========================================

@@ -445,100 +445,87 @@
                     </div>
                 </div>
 
-                <!-- Raporlar Section -->
-                <div id="raporlar-section" class="section-container hidden">
-                    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <h2 style="color: var(--text-dark); font-size: 1.25rem;">📊 Operasyon Raporları & Analitik</h2>
-                        <button id="btnRefreshReports" class="action-btn" style="background:#4338CA; color:white; border:none; box-shadow: 0 4px 12px rgba(67, 56, 202, 0.2);">
-                            🔄 Dinamik Yenile
+                <!-- Raporlar Section (Yeni Beyaz Tema) -->
+                <div id="raporlar-section" class="section-container hidden" style="background-color: #f8fafc; padding: 24px;">
+                    <!-- Üst Başlık -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div>
+                            <h2 style="color: #1e293b; font-size: 1.5rem; margin:0; font-weight: 700;">İç Raporlar</h2>
+                            <p style="color: #64748b; font-size: 0.9rem; margin: 4px 0 0 0;">Anlık operasyon analizi ve genel performans metrikleri.</p>
+                        </div>
+                    </div>
+
+                    <!-- 1. Filtre Şeridi -->
+                    <div style="background: white; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; border: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                        <select id="filter-report-tedarikci" style="flex: 1; min-width: 130px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm Tedarikçiler</option></select>
+                        <select id="filter-report-yil" style="flex: 1; min-width: 100px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm Yıllar</option></select>
+                        <select id="filter-report-ay" style="flex: 1; min-width: 100px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm Aylar</option></select>
+                        <select id="filter-report-musteri" style="flex: 1; min-width: 130px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm Müşteriler</option></select>
+                        <select id="filter-report-il" style="flex: 1; min-width: 120px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm İller</option></select>
+                        <select id="filter-report-teminat" style="flex: 1; min-width: 130px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm Teminatlar</option></select>
+                        <select id="filter-report-segment" style="flex: 1; min-width: 130px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none;"><option value="">Tüm Segmentler</option></select>
+                        <button id="btnResetFilters" style="background: #94a3b8; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; transition: 0.2s;">
+                            🔄 Filtreleri Sıfırla
                         </button>
                     </div>
 
-                    <!-- Filters -->
-                    <div class="filters-section glass-card" style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 16px;">
-                        <div class="filter-group">
-                            <label>Başlangıç Tarihi</label>
-                            <input type="date" id="filter-report-start" class="filter-input">
+                    <!-- 2. KPI Kartları Satır 1 -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px;">
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 0.85rem; color: #64748b; font-weight: 700;">Atama Bekleyen Hizmet</span>
+                            <strong id="kpi-1-bekleyen" style="font-size: 1.8rem; color: #475569;">0</strong>
                         </div>
-                        <div class="filter-group">
-                            <label>Bitiş Tarihi</label>
-                            <input type="date" id="filter-report-end" class="filter-input">
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 0.85rem; color: #64748b; font-weight: 700;">Teslimatı Bekleyen Hizmet</span>
+                            <strong id="kpi-2-teslimat" style="font-size: 1.8rem; color: #f59e0b;">0</strong>
                         </div>
-                        <div class="filter-group">
-                            <label>Tedarikçi</label>
-                            <select id="filter-report-tedarikci" class="filter-input"><option value="">Tüm Tedarikçiler</option></select>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 0.85rem; color: #64748b; font-weight: 700;">Kullanımı Devam Eden</span>
+                            <strong id="kpi-3-devam" style="font-size: 1.8rem; color: #3b82f6;">0</strong>
                         </div>
-                        <div class="filter-group">
-                            <label>Müşteri / Kurum</label>
-                            <select id="filter-report-musteri" class="filter-input"><option value="">Tüm Müşteriler</option></select>
-                        </div>
-                        <div class="filter-group">
-                            <label>Araç Segmenti</label>
-                            <select id="filter-report-segment" class="filter-input">
-                                <option value="">Tüm Segmentler</option>
-                                <option value="B">B Segment</option>
-                                <option value="C">C Segment</option>
-                                <option value="D">D Segment</option>
-                                <option value="B-SUV">B-SUV</option>
-                                <option value="C-SUV">C-SUV</option>
-                                <option value="D-SUV">D-SUV</option>
-                                <option value="Pick-Up">Pick-Up</option>
-                            </select>
-                        </div>
-                        <div class="filter-group" style="display:flex; align-items:flex-end;">
-                            <button id="btnApplyReportFilters" class="action-btn" style="width:100%; border:1px solid var(--primary-color); color:var(--primary-color); height:42px; font-weight:600;">Sonuçları Filtrele</button>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 0.85rem; color: #64748b; font-weight: 700;">Kullanımı Biten Hizmet</span>
+                            <strong id="kpi-4-biten" style="font-size: 1.8rem; color: #10b981;">0</strong>
                         </div>
                     </div>
 
-                    <!-- KPI Cards -->
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom: 20px;">
-                        <div class="glass-card" style="padding:20px; border-left:4px solid #3B82F6; display:flex; flex-direction:column; justify-content:center;">
-                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Toplam İşlem Gören Dosya</div>
-                            <div id="kpi-total-files" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0</div>
+                    <!-- 3. KPI Kartları Satır 2 -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+                        <div style="background: white; border: 1px solid #e2e8f0; border-bottom: 3px solid #6366f1; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Açılan Dosyanın Atanma Süresi (Ort)</span>
+                            <strong id="kpi-5-atanma" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">00:00:00</strong>
                         </div>
-                        <div class="glass-card" style="padding:20px; border-left:4px solid #10B981; display:flex; flex-direction:column; justify-content:center;">
-                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Aktif Kiralama (Müşteride)</div>
-                            <div id="kpi-active-rentals" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0</div>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-bottom: 3px solid #8b5cf6; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Operasyon Teslimat Süresi (Ort)</span>
+                            <strong id="kpi-6-operasyon-teslim" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">00:00:00</strong>
                         </div>
-                        <div class="glass-card" style="padding:20px; border-left:4px solid #EF4444; display:flex; flex-direction:column; justify-content:center;">
-                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Tahmini Toplam Maliyet</div>
-                            <div id="kpi-total-cost" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0 ₺</div>
-                        </div>
-                        <div class="glass-card" style="padding:20px; border-left:4px solid #F59E0B; display:flex; flex-direction:column; justify-content:center;">
-                            <div style="color:var(--text-muted); font-size:0.9rem; font-weight:600; margin-bottom:8px;">Ortalama İkame Süresi</div>
-                            <div id="kpi-avg-duration" style="font-size:1.8rem; font-weight:700; color:var(--text-dark);">0 Gün</div>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-bottom: 3px solid #ec4899; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Tedarikçi Teslimat Süresi (Ort)</span>
+                            <strong id="kpi-7-tedarikci-teslim" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">00:00:00</strong>
                         </div>
                     </div>
 
-                    <!-- Charts Grid -->
-                    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
-                        <!-- Line Chart: Zaman Çizelgesi -->
-                        <div class="glass-card" style="padding:20px; grid-column: 1 / -1;">
-                            <h3 style="font-size:1.1rem; color:var(--text-dark); margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
-                                Günlük Dosya Açılış Trendi
-                                <span style="font-size:0.85rem; padding:4px 8px; background:#F1F5F9; border-radius:12px; font-weight:500;">Son 30 Gün</span>
-                            </h3>
-                            <div style="position:relative; height:300px; width:100%;">
-                                <canvas id="chart-timeline"></canvas>
-                            </div>
+                    <!-- 4. KPI Kartları Satır 3 -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Toplam İkame Gün</span>
+                            <strong id="kpi-8-toplam-gun" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">0</strong>
                         </div>
-                        
-                        <!-- Bar Chart: Tedarikçi Dağılımı -->
-                        <div class="glass-card" style="padding:20px;">
-                            <h3 style="font-size:1.1rem; color:var(--text-dark); margin-bottom:16px;">Tedarikçi Bazlı Dosya Yükü</h3>
-                            <div style="position:relative; height:250px; width:100%;">
-                                <canvas id="chart-supplier-bar"></canvas>
-                            </div>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Dosya Başı İkame Gün (Ort)</span>
+                            <strong id="kpi-9-ort-gun" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">0.0</strong>
                         </div>
-                        
-                        <!-- Doughnut Chart: Müşteri Dağılımı -->
-                        <div class="glass-card" style="padding:20px;">
-                            <h3 style="font-size:1.1rem; color:var(--text-dark); margin-bottom:16px;">Ağırlıklı Müşteri Dağılımı</h3>
-                            <div style="position:relative; height:250px; width:100%; display:flex; justify-content:center;">
-                                <canvas id="chart-customer-pie"></canvas>
-                            </div>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Toplam İkame Tutarı</span>
+                            <strong id="kpi-10-toplam-tutar" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">0 ₺</strong>
+                        </div>
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                            <span style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Dosya Başı İkame Tutar (Ort)</span>
+                            <strong id="kpi-11-ort-tutar" style="font-size: 1.4rem; color: #1e293b; display: block; margin-top: 4px;">0 ₺</strong>
                         </div>
                     </div>
+
+                    <div id="raporlar-matrix-container" style="display: grid; grid-template-columns: 1fr; gap: 24px;"></div>
                 </div>
 
                 <!-- İncele Modal Overlay -->
